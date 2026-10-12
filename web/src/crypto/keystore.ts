@@ -1,32 +1,47 @@
-// Archivio locale (IndexedDB) delle chiavi di un account: solo l'identita' pubblica e la chiave
-// principale *avvolta*. Mai chiavi private in chiaro.
-import { get, set, del } from 'idb-keyval';
-import type { PublicIdentity, WrappedKey } from './keys';
-import type { PasskeyInfo } from './passkey';
+// Archivio locale SOLO su scelta esplicita ("Ricorda su questo browser"): la chiave principale
+// avvolta da una chiave WebCrypto non esportabile. Di default Athenai non salva nulla nel browser.
+import { get, set, del, createStore, type UseStore } from 'idb-keyval';
+import type { PublicIdentity } from './keys';
 import type { DeviceWrap } from './deviceKey';
 
-export interface KeyRecord {
-  v: 1;
+export interface DeviceRecord {
+  v: 2;
   account: string;
   identity: PublicIdentity;
-  passkey?: { info: PasskeyInfo; wrapped: WrappedKey };
-  device?: DeviceWrap;
-  /** come si sblocca su questo dispositivo (assente = da scegliere) */
-  protection?: 'passkey' | 'device' | 'none';
-  created: string;
+  device: DeviceWrap;
 }
 
-const recKey = (account: string) => `athenai:keys:${account}`;
-const devKey = (account: string) => `athenai:devicekey:${account}`;
+const DB = 'athenai-device';
+let store: UseStore | null = null;
+// aprire il database lo crea: lo si apre solo se esiste gia' o se l'utente sceglie di ricordare
+const open = () => (store ??= createStore(DB, 'keys'));
+async function exists(): Promise<boolean> {
+  if (store) return true;
+  if (!('databases' in indexedDB)) return false;
+  return (await indexedDB.databases()).some((d) => d.name === DB);
+}
 
-export const keystore = {
-  load: (account: string) => get<KeyRecord>(recKey(account)),
-  save: (r: KeyRecord) => set(recKey(r.account), r),
-  loadDeviceKey: (account: string) => get<CryptoKey>(devKey(account)),
-  saveDeviceKey: (account: string, k: CryptoKey) => set(devKey(account), k),
-  /** dimentica questo dispositivo: restano solo le copie altrove e la frase di recupero */
+const recKey = (account: string) => `athenai:device:${account}`;
+const keyKey = (account: string) => `athenai:devicekey:${account}`;
+
+export const deviceStore = {
+  async load(account: string): Promise<{ record: DeviceRecord; key: CryptoKey } | null> {
+    try {
+      if (!(await exists())) return null;
+      const record = await get<DeviceRecord>(recKey(account), open());
+      const key = await get<CryptoKey>(keyKey(account), open());
+      return record && key ? { record, key } : null;
+    } catch {
+      return null;
+    }
+  },
+  async save(record: DeviceRecord, key: CryptoKey) {
+    await set(keyKey(record.account), key, open());
+    await set(recKey(record.account), record, open());
+  },
   async forget(account: string) {
-    await del(recKey(account));
-    await del(devKey(account));
+    if (!(await exists())) return;
+    await del(recKey(account), open()).catch(() => undefined);
+    await del(keyKey(account), open()).catch(() => undefined);
   },
 };

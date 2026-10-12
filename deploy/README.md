@@ -1,12 +1,12 @@
 # Accesso con Zitadel (sviluppo in locale)
 
-Athenai usa **Zitadel** (Svizzera, open source) come fornitore d'identità: passkey ed email per
-primi, Google e GitHub come fornitori esterni facoltativi. Senza Zitadel l'app parte in
-**modalità di prova** (account locale al browser, crittografia vera): basta `npm run dev`.
+Athenai usa **Zitadel** (Svizzera, open source, auto-ospitato) come fornitore d'identità: **solo
+passkey ed email**, nessun fornitore esterno (né americano né altro). Senza Zitadel il server può
+partire in **modalità di prova** (`ALLOW_TRIAL=true`: account che dura quanto la scheda,
+crittografia vera).
 
-> Stato: guida scritta sul compose ufficiale di Zitadel v4.19.4, **non ancora provata** su questa
-> macchina (Docker non installato). Il `docker compose` dei servizi di Athenai (relay, Postgres,
-> archivio cifrato) arriva con il server, nella fase P2.
+> Stato: il compose di Athenai (`deploy/compose.yml`: Postgres + server con l'app) è provato. La
+> parte di Zitadel è scritta sul compose ufficiale v4.19.4 ma **non ancora provata**.
 
 ## 1. Avviare Zitadel
 
@@ -29,12 +29,14 @@ docker compose up -d
    l'indirizzo pubblico, solo `https`.
 3. **Login policy**: abilitare *passwordless* (passkey) e la registrazione via email; nessuna
    password obbligatoria.
-4. **Fornitori esterni** (facoltativi): Google e GitHub. Annotare l'**ID** di ciascuno.
+4. **Nessun fornitore esterno**: niente Google, GitHub o Apple.
 5. Nessun dato dei contenuti passa da qui: Zitadel conosce solo email, nome e i fornitori usati.
 
-## 3. Collegare l'app
+## 3. Collegare Athenai
 
 ```sh
-cp deploy/web.env.example web/.env.local   # e compilare i valori
-npm run dev
+# app (sviluppo)
+cp deploy/web.env.example web/.env.local      # VITE_OIDC_ISSUER, VITE_OIDC_CLIENT_ID
+# server: OIDC_ISSUER e OIDC_AUDIENCE (= client id) in server/.env, ALLOW_TRIAL=false
+# oppure con Docker: OIDC_ISSUER=... OIDC_AUDIENCE=... ALLOW_TRIAL=false docker compose -f deploy/compose.yml up -d --build
 ```

@@ -1,21 +1,25 @@
-// Sblocco: passkey se c'e' (un tocco), altrimenti le 12 parole. Il resto e' nascosto.
+// Sblocco: passkey (custodita dal server, sincronizzata dal portachiavi) se c'e', altrimenti le 12
+// parole, oppure un altro dispositivo gia' sbloccato. Il resto e' nascosto.
 import { useState } from 'react';
 import { Fingerprint as FpIcon } from 'lucide-react';
 import { t, useLang } from '../i18n';
 import { useSession } from '../state/session';
 import { Kylix } from '../brand/Kylix';
+import { LinkReceive } from './LinkReceive';
 
 export function Unlock() {
   useLang();
-  const { record, unlockWithPasskey } = useSession();
+  const { account, unlockWithPasskey } = useSession();
+  const hasPasskey = !!account?.passkeys.length;
   const [failed, setFailed] = useState(false);
-  const [phrase, setPhrase] = useState(!record?.passkey);
+  const [mode, setMode] = useState<'main' | 'phrase' | 'link'>(hasPasskey ? 'main' : 'phrase');
+  if (mode === 'link') return <LinkReceive onUsePhrase={() => setMode('phrase')} />;
   return (
     <main className="symbolon">
       <section className="panel">
         <Kylix size={48} />
         <h1 className="display">{t('unlock.title')}</h1>
-        {record?.passkey && (
+        {hasPasskey && (
           <button
             className="btn btn--primary btn--large"
             onClick={async () => {
@@ -30,19 +34,24 @@ export function Unlock() {
             {t('unlock.failed')}
           </p>
         )}
-        {phrase ? (
-          <PhraseUnlock />
+        {mode === 'phrase' ? (
+          <PhraseUnlock onLink={() => setMode('link')} />
         ) : (
-          <button className="link-btn" onClick={() => setPhrase(true)}>
-            {t('unlock.phrase')}
-          </button>
+          <div className="row">
+            <button className="link-btn" onClick={() => setMode('phrase')}>
+              {t('unlock.phrase')}
+            </button>
+            <button className="link-btn" onClick={() => setMode('link')}>
+              {t('unlock.linkInstead')}
+            </button>
+          </div>
         )}
       </section>
     </main>
   );
 }
 
-/** Le 12 parole del Symbolon (sblocco, o identita' gia' esistente su un dispositivo nuovo). */
+/** Le 12 parole del Symbolon. */
 export function PhraseUnlock({ onLink }: { onLink?: () => void }) {
   const adoptPhrase = useSession((s) => s.adoptPhrase);
   const [text, setText] = useState('');
@@ -53,7 +62,7 @@ export function PhraseUnlock({ onLink }: { onLink?: () => void }) {
       onSubmit={async (e) => {
         e.preventDefault();
         const r = await adoptPhrase(text);
-        setErr(r === 'ok' ? null : t(r === 'bad' ? 'unlock.bad' : 'unlock.other'));
+        setErr(r === 'ok' ? null : t(r === 'bad' ? 'unlock.bad' : r === 'offline' ? 'offline.text' : 'unlock.other'));
         if (r === 'ok') setText('');
       }}
     >

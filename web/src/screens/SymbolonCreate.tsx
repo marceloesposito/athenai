@@ -1,14 +1,13 @@
-// Creazione del Symbolon: racconto -> 12 parole -> controllo di tre parole -> come sbloccare.
+// Account nuovo: creazione del Symbolon. Racconto -> 12 parole -> controllo di tre parole.
+// (Chi ha gia' un Symbolon per questo account trova lo sblocco, non questa schermata.)
 import { useMemo, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { t, useLang, getLang } from '../i18n';
 import { newRecoveryPhrase, phraseWords, confirmationPositions, normalizePhrase } from '../crypto/recovery';
 import { useSession } from '../state/session';
 import { Kylix } from '../brand/Kylix';
-import { LinkReceive } from './LinkReceive';
-import { PhraseUnlock } from './Unlock';
 
-type Step = 'intro' | 'words' | 'confirm' | 'have' | 'link';
+type Step = 'intro' | 'words' | 'confirm';
 
 export function SymbolonCreate() {
   useLang();
@@ -17,10 +16,8 @@ export function SymbolonCreate() {
   const words = phraseWords(phrase);
   const positions = useMemo(() => confirmationPositions(3), []);
   const [answers, setAnswers] = useState<string[]>(['', '', '']);
-  const [wrong, setWrong] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
   const adoptPhrase = useSession((s) => s.adoptPhrase);
-
-  if (step === 'link') return <LinkReceive onUsePhrase={() => setStep('have')} />;
 
   return (
     <main className="symbolon">
@@ -35,14 +32,9 @@ export function SymbolonCreate() {
               <button className="btn btn--primary" onClick={() => setStep('words')}>
                 <ShieldCheck size={16} /> {t('symbolon.create')}
               </button>
-              <button className="btn" onClick={() => setStep('link')}>
-                {t('symbolon.haveOne')}
-              </button>
             </div>
           </>
         )}
-
-        {step === 'have' && <PhraseUnlock onLink={() => setStep('link')} />}
 
         {step === 'words' && (
           <>
@@ -72,8 +64,9 @@ export function SymbolonCreate() {
             onSubmit={async (e) => {
               e.preventDefault();
               const ok = positions.every((p, i) => normalizePhrase(answers[i]) === words[p]);
-              setWrong(!ok);
-              if (ok) await adoptPhrase(phrase); // poi la sessione passa alla scelta dello sblocco
+              if (!ok) return setMsg(t('symbolon.wrong'));
+              const r = await adoptPhrase(phrase); // poi la sessione passa alla scelta dello sblocco
+              setMsg(r === 'ok' ? null : t(r === 'offline' ? 'offline.text' : 'unlock.failed'));
             }}
           >
             <p>{t('symbolon.confirm')}</p>
@@ -90,9 +83,9 @@ export function SymbolonCreate() {
                 />
               </label>
             ))}
-            {wrong && (
+            {msg && (
               <p className="error" role="alert">
-                {t('symbolon.wrong')}
+                {msg}
               </p>
             )}
             <div className="row">

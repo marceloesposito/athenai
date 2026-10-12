@@ -614,3 +614,194 @@ h2 {
     padding: 22px;
   }
 }
+
+/* ---------------------------------------------------------------- carte (Polis, Oikos) */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  width: min(900px, 100%);
+  margin-top: 24px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 120px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.card:hover {
+  border-color: var(--terracotta);
+  transform: translateY(-1px);
+}
+
+.card__title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.card__meta {
+  color: var(--muted);
+  font-size: var(--fs-ui-small);
+}
+
+.card--oikos {
+  border-top: 3px solid var(--terracotta);
+}
+
+.card--add {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  border-style: dashed;
+  color: var(--ink-2);
+}
+
+.card--form {
+  cursor: default;
+  justify-content: center;
+}
+
+.card--form:hover {
+  transform: none;
+}
+
+/* ---------------------------------------------------------------- Polis */
+.polis {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 16px 48px;
+}
+
+.polis__head {
+  display: flex;
+  justify-content: flex-end;
+  width: min(900px, 100%);
+}
+
+.avatars {
+  display: flex;
+  align-items: center;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink-2);
+  font: inherit;
+  cursor: pointer;
+}
+
+.avatar--small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-right: -6px;
+  border: 2px solid var(--paper);
+  font-size: 10px;
+  cursor: inherit;
+}
+
+.avatars__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 14px;
+  font-size: var(--fs-ui-small);
+}
+
+.members {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.member__main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-small);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.member__main:hover {
+  background: var(--chrome);
+}
+
+.member__more {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 10px 10px;
+}
+
+.input--small {
+  width: auto;
+  padding: 3px 8px;
+  font-size: var(--fs-ui-small);
+}
+
+.invite {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.invite h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.row--start {
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  width: min(720px, 100%);
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border: 1px solid color-mix(in srgb, var(--aegean) 40%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--aegean) 8%, var(--paper));
+  text-align: left;
+}

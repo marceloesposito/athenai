@@ -1,23 +1,22 @@
-// Accesso: chi sei (OIDC verso Zitadel). Non da' accesso ai contenuti, che sono cifrati con le
-// chiavi del Symbolon: Google, GitHub o il fornitore d'identita' non possono leggerli.
-export type SocialProvider = 'google' | 'github';
-
+// Accesso: chi sei (OIDC verso Zitadel, auto-ospitato in Svizzera: passkey o email). Nessun fornitore
+// americano. L'accesso non da' i contenuti, che sono cifrati con le chiavi del Symbolon.
 export interface AuthUser {
-  /** identificativo stabile dell'account (`sub` OIDC) */
+  /** identificativo stabile dell'account (`sub` OIDC o id di prova) */
   id: string;
   name: string;
   email?: string;
 }
 
+/** Come il server riconosce l'account d'accesso: token OIDC verificabile, o id di prova. */
+export type Binding = { idToken: string } | { trialId: string };
+
 export interface AuthClient {
-  /** false = nessun server d'identita' configurato: accesso di prova locale */
+  /** false = nessun server d'identita' configurato: accesso di prova */
   readonly configured: boolean;
-  /** fornitori esterni attivi su questo server */
-  readonly providers: SocialProvider[];
-  /** dopo il ritorno dal fornitore: l'utente, oppure null */
   completeSignIn(): Promise<AuthUser | null>;
   currentUser(): Promise<AuthUser | null>;
-  /** porta alla pagina del fornitore (passkey/email, o direttamente Google/GitHub) */
-  signIn(provider?: SocialProvider): Promise<AuthUser | null>;
+  /** con OIDC porta alla pagina di Zitadel (passkey o email) */
+  signIn(): Promise<AuthUser | null>;
   signOut(): Promise<void>;
+  binding(): Promise<Binding | null>;
 }

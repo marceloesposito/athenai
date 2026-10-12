@@ -8,24 +8,37 @@ Nome: Ἀθῆναι, Atene, la prima grande democrazia. Glossario: [GLOSSARIO.m
 ## Priorità (nell'ordine)
 1. **Proprietà dei dati, privacy, sicurezza.** Il server non legge mai i contenuti. Esportazione
    completa in formati aperti in qualunque momento. Auto-ospitabile.
-2. **Servizi di origine europea**, gratuiti prima di tutto.
-3. **No-profit**: piani a pagamento solo a prezzo di costo, per sostenere i server.
-4. **Interfaccia minimale**: pochi strumenti visibili, un'azione principale per schermata, il resto
+2. **Solo servizi europei e attenti alla privacy** (decisione del 12 ottobre 2026, che prevale su
+   tutto il piano precedente): **nessun fornitore americano** — niente accesso con Google, GitHub o
+   Apple, niente Google Drive o iCloud, niente GitHub per il codice o per i progetti. Gratuiti prima
+   di tutto.
+3. **Nulla nel browser di default.** Identità pubblica, chiave principale avvolta dalla passkey,
+   preferenze e contenuti stanno sul server, cifrati. In locale solo su scelta esplicita ("Ricorda su
+   questo browser"; in futuro "Disponibile offline").
+4. **No-profit**: piani a pagamento solo a prezzo di costo, per sostenere i server.
+5. **Interfaccia minimale**: pochi strumenti visibili, un'azione principale per schermata, il resto
    nascosto finché non serve. La collaborazione deve essere fluida, mai interrotta da opzioni.
 
-## Servizi
+## Servizi (solo europei)
 | Bisogno | Scelta | Origine |
 |---|---|---|
 | Server | Hetzner Cloud (alternativa Scaleway) | DE (FR) |
 | File cifrati | Hetzner Object Storage o Garage auto-ospitato | DE / FR |
-| Accesso | Zitadel auto-ospitato: passkey ed email; Google, GitHub, Apple facoltativi | CH |
+| Accesso | Zitadel auto-ospitato: **solo passkey ed email** | CH |
 | Database (solo metadati minimi) | PostgreSQL | — |
-| Tempo reale | relay proprio con protocollo secsync (Yjs cifrato) | — |
-| Email (notifiche senza contenuti) | Brevo | FR |
+| Tempo reale | relay proprio (protocollo secsync, Yjs cifrato) | — |
+| Email (notifiche senza contenuti) | Brevo (o Infomaniak) | FR (CH) |
 | Errori | GlitchTip auto-ospitato | — |
 | Statistiche | nessuna | — |
 | Dominio e DNS | Infomaniak o Gandi | CH / FR |
-| Backup (Archeion) | WebDAV/Nextcloud per primo, Google Drive `appdata`, iCloud CloudKit | — |
+| Codice sorgente e CI (sviluppo) | GitHub — scelta del committente per lo sviluppo; **mai usato dall'app** | — |
+| Versioning di un Oikos (dentro l'app) | repo git **cifrato** solo su **Codeberg** (Forgejo; no-profit) | DE |
+| Backup (Archeion) | Nextcloud/WebDAV, Infomaniak kDrive, Hetzner Storage Box, pCloud — sempre cifrati | DE / CH |
+
+**Restano pezzi non europei, da tenere d'occhio:** il registro npm (le dipendenze si installano da
+`registry.npmjs.org`; mitigazione: lockfile con integrità, in futuro uno specchio europeo) e la
+sincronizzazione delle passkey, che dipende dal portachiavi scelto dall'utente sul proprio
+dispositivo (consigliati gestori europei come Proton Pass, CH, o KeePassXC, locale).
 
 ## Crittografia
 Vedi [MODELLO-MINACCE.md](MODELLO-MINACCE.md). In breve: libsodium; identità (X25519 + Ed25519)
@@ -61,11 +74,11 @@ Markdown da `logos`).
 | Fase | Contenuto | Stato |
 |---|---|---|
 | P0 | Nucleo `logos` estratto da Alexandria | fatto (logos v0.1.0, Alexandria #32 #33) |
-| P1 | Repo, identità e glossario, Propylaia (Zitadel OIDC o prova), Symbolon (12 parole, passkey PRF, chiave del dispositivo), collegamento dei dispositivi, Akropolis, Nomoi, modello delle minacce | in corso |
-| P2 | Polis e Oikos cifrati: server (relay + API minime, Postgres), inviti e ruoli, consegna e rotazione delle chiavi, collegamento fra dispositivi diversi, `docker compose` | |
+| P1 | Repo, identità e glossario, Propylaia (Zitadel OIDC o prova), Symbolon (12 parole, passkey PRF, chiave del dispositivo), collegamento dei dispositivi, Akropolis, Nomoi, modello delle minacce | fatto |
+| P2 | Polis e Oikos cifrati: server (relay + API minime, Postgres), inviti e ruoli, consegna e rotazione delle chiavi, collegamento fra dispositivi diversi, nulla in locale di default, `docker compose` | fatto |
 | P3 | Grapheion collaborativo cifrato (secsync), cursori, Scholia con @menzioni, Keryx, Heuresis locale | |
 | P4 | **Agorà**: canvas, carte, **post-it stile Miro**, connettori, Topoi e kanban, presenza | |
 | P5 | Thesauros (fonti CSL, DOI/ISBN, file cifrati), Anthologia | |
 | P6 | Anamnesis (versioni), Dokimasia (ruolo Mentore, Suggerisci), Chronika | |
-| P7 | Archeion: backup cifrati automatici (WebDAV, Drive, iCloud) e ripristino | |
+| P7 | Archeion: backup cifrati automatici (WebDAV/Nextcloud, kDrive, Storage Box, pCloud) e ripristino; versioning su repo git cifrato (solo Codeberg) | |
 | P8 | Lancio no-profit: costi pubblici, Open Collective Europe, Liberapay, NLnet, guida all'auto-ospitalità, audit | |

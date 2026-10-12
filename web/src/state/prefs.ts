@@ -1,23 +1,17 @@
-// Preferenze di questo browser (tema e lingua): comodita' locali, non dati dell'account.
+// Preferenze dell'utente (tema, lingua, modo di sblocco): stanno sul server, cifrate con una chiave
+// derivata dalla sua chiave principale. Prima dell'accesso valgono quelle del browser; nulla si
+// salva in locale.
 import { create } from 'zustand';
 import { setLang, getLang, type Lang } from '../i18n';
 
 export type Theme = 'light' | 'dark' | 'system';
+export type UnlockMode = 'passkey' | 'device' | 'phrase';
 
-function read<T extends string>(key: string, ok: readonly T[], fallback: T): T {
-  try {
-    const v = localStorage.getItem(key) as T | null;
-    return v && ok.includes(v) ? v : fallback;
-  } catch {
-    return fallback;
-  }
-}
-function write(key: string, v: string) {
-  try {
-    localStorage.setItem(key, v);
-  } catch {
-    /* solo per questa sessione */
-  }
+export interface UserPrefs {
+  theme: Theme;
+  lang: Lang;
+  /** come l'utente ha scelto di sbloccare (assente = da scegliere) */
+  unlock?: UnlockMode;
 }
 
 export function applyTheme(t: Theme) {
@@ -25,30 +19,25 @@ export function applyTheme(t: Theme) {
   else document.documentElement.dataset.theme = t;
 }
 
-interface Prefs {
-  theme: Theme;
-  lang: Lang;
-  setTheme(t: Theme): void;
-  setLang(l: Lang): void;
+interface PrefsState extends UserPrefs {
+  /** chi salva (impostato dalla sessione quando l'utente e' sbloccato) */
+  saver: ((p: UserPrefs) => Promise<void>) | null;
+  apply(p: Partial<UserPrefs>): void;
+  update(p: Partial<UserPrefs>): Promise<void>;
 }
 
-export const usePrefs = create<Prefs>((set) => {
-  const theme = read<Theme>('athenai:theme', ['light', 'dark', 'system'], 'system');
-  const lang = read<Lang>('athenai:lang', ['it', 'en'], getLang());
-  applyTheme(theme);
-  setLang(lang);
-  return {
-    theme,
-    lang,
-    setTheme(t) {
-      applyTheme(t);
-      write('athenai:theme', t);
-      set({ theme: t });
-    },
-    setLang(l) {
-      setLang(l);
-      write('athenai:lang', l);
-      set({ lang: l });
-    },
-  };
-});
+export const usePrefs = create<PrefsState>((set, get) => ({
+  theme: 'system',
+  lang: getLang(),
+  saver: null,
+  apply(p) {
+    if (p.theme) applyTheme(p.theme);
+    if (p.lang) setLang(p.lang);
+    set(p);
+  },
+  async update(p) {
+    get().apply(p);
+    const { theme, lang, unlock, saver } = get();
+    await saver?.({ theme, lang, unlock });
+  },
+}));
