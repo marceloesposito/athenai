@@ -1,7 +1,7 @@
 # Athenai — contesto per Claude Code
 
 Suite di scrittura collaborativa nel browser, cifrata end-to-end, europea, open source (AGPL) e
-no-profit. Piano e fasi: `docs/PIANO.md`. Nomi: `docs/GLOSSARIO.md`. Sicurezza:
+no-profit. **Riprendendo il lavoro leggere prima `docs/HANDOVER.md`.** Piano e fasi: `docs/PIANO.md`. Nomi: `docs/GLOSSARIO.md`. Sicurezza:
 `docs/MODELLO-MINACCE.md` (si aggiorna nello stesso commit in cui cambia qualcosa di rilevante).
 
 ## Principi non negoziabili
