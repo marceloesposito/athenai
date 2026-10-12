@@ -1,0 +1,79 @@
+/* Identita' di Athenai: la ceramica attica a figure rosse (terracotta e nero), il marmo del
+   Partenone, il blu dell'Egeo e l'ulivo di Atena. Colori solo da qui (tema chiaro, scuro, di sistema). */
+:root {
+  --marble: #f6f2ea;
+  --paper: #fffdf8;
+  --chrome: #efe8dc;
+  --chrome-2: #e4dacb;
+  --line: #d8cbb7;
+  --ink: #1d1a17;
+  --ink-2: #4a433b;
+  --muted: #7a6f62;
+  --terracotta: #b5532c;
+  --terracotta-ink: #8f3e1f;
+  --aegean: #1f5a8a;
+  --olive: #5e6b2f;
+  --ochre: #c08a2e;
+  --accent: var(--terracotta);
+  /* la ceramica: nero e terracotta fissi, uguali nei due temi (il logo) */
+  --vase-black: #1d1a17;
+  --vase-red: #c2623a;
+  --accent-ink: #fffdf8;
+  --ok: #4f6f2a;
+  --bad: #a83a2c;
+  --focus: #1f5a8a;
+  --shadow: 0 1px 2px rgb(40 25 10 / 0.08), 0 6px 20px rgb(40 25 10 / 0.08);
+  --radius: 10px;
+  --radius-small: 6px;
+  --font-display: 'GFS Didot', 'Didot', 'Bodoni 72', Georgia, serif;
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --fs-ui: 14px;
+  --fs-ui-small: 12px;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --marble: #141210;
+  --paper: #1c1916;
+  --chrome: #24201c;
+  --chrome-2: #2e2924;
+  --line: #3b342d;
+  --ink: #f1ebe2;
+  --ink-2: #cfc6b9;
+  --muted: #9d9284;
+  --terracotta: #d9744a;
+  --terracotta-ink: #f0a07c;
+  --aegean: #6fa3d1;
+  --olive: #a3b067;
+  --ochre: #d9a650;
+  --accent-ink: #1c1916;
+  --ok: #8fb35a;
+  --bad: #e07a6b;
+  --focus: #6fa3d1;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 6px 20px rgb(0 0 0 / 0.35);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --marble: #141210;
+    --paper: #1c1916;
+    --chrome: #24201c;
+    --chrome-2: #2e2924;
+    --line: #3b342d;
+    --ink: #f1ebe2;
+    --ink-2: #cfc6b9;
+    --muted: #9d9284;
+    --terracotta: #d9744a;
+    --terracotta-ink: #f0a07c;
+    --aegean: #6fa3d1;
+    --olive: #a3b067;
+    --ochre: #d9a650;
+    --accent-ink: #1c1916;
+    --ok: #8fb35a;
+    --bad: #e07a6b;
+    --focus: #6fa3d1;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 6px 20px rgb(0 0 0 / 0.35);
+    color-scheme: dark;
+  }
+}
