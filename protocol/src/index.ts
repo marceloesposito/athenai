@@ -1,37 +1,46 @@
 // Protocollo fra l'app e il server di Athenai: ruoli, testi da firmare, formati delle buste cifrate,
-// link d'invito e tipi delle API. Solo funzioni pure e tipi: la crittografia sta nel client, il
-// server verifica le firme e i permessi ma non vede mai chiavi segrete o contenuti in chiaro.
+// link (inviti e ospiti) e tipi delle API. Solo funzioni pure e tipi: la crittografia sta nel client,
+// il server verifica firme e permessi ma non vede mai chiavi segrete o contenuti in chiaro.
 // (Solo sintassi "cancellabile": il server lo esegue con il TypeScript nativo di Node.)
 
 export const API_VERSION = 'v1';
 
 // ---------------------------------------------------------------- ruoli
 
-export const ROLES = ['archon', 'polites', 'mentore', 'xenos'] as const;
+/** Archon: proprietario della Polis. Polites: membro. Xenos: ospite di un Symposion via link. */
+export const ROLES = ['archon', 'polites', 'xenos'] as const;
 export type Role = (typeof ROLES)[number];
+/** i ruoli di chi ha un account nella Polis */
+export const MEMBER_ROLES = ['archon', 'polites'] as const;
+export type MemberRole = (typeof MEMBER_ROLES)[number];
+/** che cosa puo' fare un ospite con il suo link */
+export type GuestMode = 'edit' | 'comment';
 
 export function isRole(x: unknown): x is Role {
   return (ROLES as readonly unknown[]).includes(x);
 }
+export function isMemberRole(x: unknown): x is MemberRole {
+  return (MEMBER_ROLES as readonly unknown[]).includes(x);
+}
+export const isGuestMode = (x: unknown): x is GuestMode => x === 'edit' || x === 'comment';
 
-/** Chi puo' fare cosa in una Polis. */
+/** Chi puo' fare cosa. */
 export const can = {
-  /** invitare, cambiare ruoli, allontanare, ruotare le chiavi */
+  /** invitare, cambiare ruoli, allontanare, creare Symposia, condividere con gli ospiti */
   govern: (r: Role) => r === 'archon',
-  /** creare Oikos e scrivere nei contenuti */
-  write: (r: Role) => r === 'archon' || r === 'polites',
-  /** commentare (Scholia) e proporre modifiche */
-  comment: (r: Role) => r !== 'xenos',
-  read: (_r: Role) => true,
+  /** scrivere nei documenti e crearne */
+  write: (r: Role, mode?: GuestMode) => r === 'archon' || r === 'polites' || (r === 'xenos' && mode === 'edit'),
+  /** commentare (Scholia): tutti, anche gli ospiti */
+  comment: (_r: Role) => true,
 };
 
 // ---------------------------------------------------------------- firme
 
-/** Testo firmato per dimostrare di possedere la chiave all'accesso. */
+/** Testo firmato per dimostrare di possedere la chiave (accesso con "resta connesso"). */
 export const authMessage = (challenge: string) => `athenai:auth:v1:${challenge}`;
 
-/** Testo firmato alla registrazione: lega le due chiavi pubbliche all'account d'accesso. */
-export const registerMessage = (signPk: string, boxPk: string, binding: string) => `athenai:register:v1:${signPk}:${boxPk}:${binding}`;
+/** Testo firmato alla registrazione: lega le due chiavi pubbliche all'email. */
+export const registerMessage = (signPk: string, boxPk: string, email: string) => `athenai:register:v2:${signPk}:${boxPk}:${normalizeEmail(email)}`;
 
 // ---------------------------------------------------------------- dati cifrati
 
@@ -46,18 +55,21 @@ export interface SealedBox {
 
 /** Dati autenticati delle buste: legano il testo cifrato a che cosa e a quale oggetto. */
 export const AD = {
+  /** la chiave principale avvolta dalla password o dal codice di recupero */
+  masterWrap: (kind: 'password' | 'recovery') => `athenai:master-wrap:v1:${kind}`,
   polisMeta: (polisId: string) => `athenai:polis-meta:v1:${polisId}`,
   profile: (polisId: string, accountId: string) => `athenai:profile:v1:${polisId}:${accountId}`,
-  oikosMeta: (oikosId: string) => `athenai:oikos-meta:v1:${oikosId}`,
-  oikosKey: (oikosId: string, epoch: number) => `athenai:oikos-key:v1:${oikosId}:${epoch}`,
+  symposionMeta: (symposionId: string) => `athenai:symposion-meta:v1:${symposionId}`,
+  symposionKey: (symposionId: string, epoch: number) => `athenai:symposion-key:v1:${symposionId}:${epoch}`,
   keyChain: (polisId: string, epoch: number) => `athenai:key-chain:v1:${polisId}:${epoch}`,
   invite: (inviteId: string) => `athenai:invite:v1:${inviteId}`,
+  guestLink: (linkId: string) => `athenai:guest-link:v1:${linkId}`,
   prefs: (accountId: string) => `athenai:prefs:v1:${accountId}`,
-  tomosMeta: (tomosId: string) => `athenai:tomos-meta:v1:${tomosId}`,
-  /** voce del registro di un Tomos: lega flusso, tipo e autore */
-  tomosLog: (tomosId: string, stream: Stream, kind: EntryKind, author: string) => `athenai:tomos-log:v1:${tomosId}:${stream}:${kind}:${author}`,
-  /** cursori e presenza (Symposion): effimeri, mai salvati */
-  awareness: (tomosId: string, accountId: string) => `athenai:awareness:v1:${tomosId}:${accountId}`,
+  docMeta: (documentId: string) => `athenai:doc-meta:v1:${documentId}`,
+  /** voce del registro di un documento: lega flusso, tipo e autore */
+  docLog: (documentId: string, stream: Stream, kind: EntryKind, author: string) => `athenai:doc-log:v1:${documentId}:${stream}:${kind}:${author}`,
+  /** cursori e presenza: effimeri, mai salvati */
+  awareness: (documentId: string, author: string) => `athenai:awareness:v1:${documentId}:${author}`,
 };
 
 const B64URL = /^[A-Za-z0-9_-]+$/;
@@ -76,61 +88,88 @@ export function isSealedBox(x: unknown, maxLength = 16384): x is SealedBox {
   return !!b && b.v === 1 && Number.isInteger(b.e) && b.e >= 1 && isB64url(b.n, 64) && isB64url(b.c, maxLength);
 }
 
-// ---------------------------------------------------------------- inviti
+// ---------------------------------------------------------------- account
 
-/**
- * Link d'invito: l'id va al server, il segreto resta nel frammento (dopo #), che il browser non
- * invia mai. Con il segreto si apre la chiave della Polis allegata all'invito.
- */
-export function inviteLink(origin: string, inviteId: string, secret: string): string {
-  return `${origin.replace(/\/$/, '')}/invito/${inviteId}#${secret}`;
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
 }
 
-export function parseInviteLink(url: string): { inviteId: string; secret: string } | null {
-  const m = /\/invito\/([0-9a-f-]{36})#([A-Za-z0-9_-]{20,})$/.exec(url.trim());
-  return m && isUuid(m[1]) ? { inviteId: m[1], secret: m[2] } : null;
+export function isEmail(x: unknown): x is string {
+  return typeof x === 'string' && x.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x.trim());
 }
 
-// ---------------------------------------------------------------- API
+/** Parametri di Argon2id con cui il browser ricava le chiavi dalla password. */
+export interface KdfParams {
+  salt: string;
+  ops: number;
+  /** byte */
+  mem: number;
+}
+
+/** Valori di oggi: 3 passaggi, 64 MiB (come Bitwarden). */
+export const KDF_DEFAULT = { ops: 3, mem: 64 * 1024 * 1024 };
+
+export function isKdfParams(x: unknown): x is KdfParams {
+  const k = x as KdfParams;
+  return !!k && isB64url(k.salt, 64) && Number.isInteger(k.ops) && k.ops >= 2 && k.ops <= 10 && Number.isInteger(k.mem) && k.mem >= 32 * 1024 * 1024 && k.mem <= 1024 * 1024 * 1024;
+}
+
+export const MIN_PASSWORD = 10;
 
 export interface RegisterRequest {
+  email: string;
+  /** chiave d'accesso ricavata dalla password: il server ne conserva solo l'hash */
+  authKey: string;
+  kdf: KdfParams;
+  /** chiave principale avvolta con la chiave ricavata dalla password (che il server non vede) */
+  wrapped: SealedBox;
   signPk: string;
   boxPk: string;
   signature: string;
-  /** OIDC (Zitadel) oppure, solo su server di prova, l'id dell'account di prova */
-  idToken?: string;
-  trialId?: string;
 }
 
-export interface LookupRequest {
-  idToken?: string;
-  trialId?: string;
+export interface LoginRequest {
+  email: string;
+  authKey: string;
 }
 
-/** Chiave principale avvolta da una passkey (estensione PRF): il server la custodisce ma non la apre. */
-export interface WrappedMaster {
-  v: 1;
-  kind: 'passkey';
-  nonce: string;
-  ct: string;
-}
-
-export function isWrappedMaster(x: unknown): x is WrappedMaster {
-  const w = x as WrappedMaster;
-  return !!w && w.v === 1 && w.kind === 'passkey' && isB64url(w.nonce, 64) && isB64url(w.ct, 256);
-}
-
-export interface PasskeyWrap {
-  credentialId: string;
-  /** sale dell'estensione PRF */
-  salt: string;
-  wrapped: WrappedMaster;
-}
-
-export interface LookupResponse extends PublicKeys {
-  passkeys: PasskeyWrap[];
-  /** preferenze dell'utente, cifrate con una chiave derivata dalla sua chiave principale */
+export interface AccountView {
+  accountId: string;
+  email: string;
+  signPk: string;
+  boxPk: string;
+  kdf: KdfParams;
+  wrapped: SealedBox;
+  /** preferenze e nome, cifrati con una chiave ricavata dalla chiave principale */
   prefs: SealedBox | null;
+  hasRecovery: boolean;
+}
+
+export interface SessionResponse {
+  token: string;
+  expiresAt: string;
+  account: AccountView;
+}
+
+export interface ChangePasswordRequest {
+  authKey: string;
+  kdf: KdfParams;
+  wrapped: SealedBox;
+}
+
+/** Codice di recupero: avvolge la chiave principale; il server conserva l'hash della sua chiave d'accesso. */
+export interface SetRecoveryRequest {
+  recoveryAuth: string;
+  wrapped: SealedBox;
+}
+
+export interface RecoverRequest {
+  email: string;
+  recoveryAuth: string;
+}
+
+export interface RecoverResponse extends SessionResponse {
+  recoveryWrapped: SealedBox;
 }
 
 export interface PublicKeys {
@@ -139,40 +178,53 @@ export interface PublicKeys {
   boxPk: string;
 }
 
-export interface SessionResponse {
-  token: string;
-  accountId: string;
-  expiresAt: string;
-}
+// ---------------------------------------------------------------- Polis e Symposia
 
 export interface PolisSummary {
   id: string;
-  role: Role;
+  role: MemberRole;
   meta: SealedBox;
   epoch: number;
   rotationNeeded: boolean;
 }
 
 export interface MemberView extends PublicKeys {
-  role: Role;
+  role: MemberRole;
   profile: SealedBox | null;
   joinedAt: string;
 }
 
-export interface OikosView {
+export interface SymposionView {
   id: string;
   meta: SealedBox;
   epoch: number;
-  /** chiave dell'Oikos per epoca, cifrata con la chiave della Polis dell'epoca indicata */
+  /** chiave del Symposion per epoca, cifrata con la chiave della Polis dell'epoca indicata */
   keys: { epoch: number; polisEpoch: number; wrapped: SealedBox }[];
   createdAt: string;
 }
 
 export interface InviteView {
   id: string;
-  role: Role;
   expiresAt: string;
   usesLeft: number;
+}
+
+/** Ospite di un Symposion: nome di un personaggio greco, chiavi pubbliche della sua sessione. */
+export interface GuestView {
+  id: string;
+  symposionId: string;
+  name: string;
+  signPk: string;
+  boxPk: string;
+  mode: GuestMode;
+  expiresAt: string;
+}
+
+export interface GuestLinkView {
+  id: string;
+  symposionId: string;
+  mode: GuestMode;
+  expiresAt: string;
 }
 
 export interface PolisDetail extends PolisSummary {
@@ -181,9 +233,12 @@ export interface PolisDetail extends PolisSummary {
   myKeys: { epoch: number; sealed: string }[];
   /** catena all'indietro: per l'epoca e, la chiave dell'epoca e-1 cifrata con quella di e */
   chain: { epoch: number; prev: SealedBox }[];
-  oikos: OikosView[];
+  symposia: SymposionView[];
+  /** ospiti con una sessione aperta */
+  guests: GuestView[];
   /** solo per l'Archon */
   invites: InviteView[];
+  links: GuestLinkView[];
 }
 
 export interface CreatePolisRequest {
@@ -195,7 +250,6 @@ export interface CreatePolisRequest {
 
 export interface CreateInviteRequest {
   id: string;
-  role: Exclude<Role, 'archon'>;
   /** chiave della Polis cifrata con il segreto del link */
   key: SealedBox;
   hours: number;
@@ -205,7 +259,6 @@ export interface CreateInviteRequest {
 export interface InviteDetail {
   id: string;
   polisId: string;
-  role: Role;
   key: SealedBox;
   meta: SealedBox;
   expiresAt: string;
@@ -217,7 +270,7 @@ export interface AcceptInviteRequest {
   profile: SealedBox;
 }
 
-export interface CreateOikosRequest {
+export interface CreateSymposionRequest {
   id: string;
   meta: SealedBox;
   key: SealedBox;
@@ -229,18 +282,114 @@ export interface RotateRequest {
   envelopes: { accountId: string; sealed: string }[];
   /** la chiave precedente cifrata con la nuova */
   prev: SealedBox;
-  /** una nuova chiave per ogni Oikos, cifrata con la nuova chiave della Polis */
-  oikos: { oikosId: string; key: SealedBox }[];
+  /** una nuova chiave per ogni Symposion, cifrata con la nuova chiave della Polis */
+  symposia: { symposionId: string; key: SealedBox }[];
   /** il nome della Polis cifrato con la nuova chiave */
   meta: SealedBox;
 }
 
-// ---------------------------------------------------------------- Tomos (P3)
+// ---------------------------------------------------------------- link (inviti e ospiti)
 
 /**
- * Un Tomos ha due flussi Yjs cifrati con la chiave dell'Oikos: il testo e gli Scholia. Sono
- * separati perche' il server, che non legge nulla, possa comunque far rispettare i ruoli: il
- * Mentore scrive solo negli Scholia, lo Xenos in nessuno dei due.
+ * Link d'invito nella Polis (per chi ha o crea un account): l'id va al server, il segreto resta nel
+ * frammento (dopo #), che il browser non invia mai. Con il segreto si apre la chiave della Polis.
+ */
+export function inviteLink(origin: string, inviteId: string, secret: string): string {
+  return `${origin.replace(/\/$/, '')}/invito/${inviteId}#${secret}`;
+}
+
+export function parseInviteLink(url: string): { inviteId: string; secret: string } | null {
+  const m = /\/invito\/([0-9a-f-]{36})#([A-Za-z0-9_-]{20,})$/.exec(url.trim());
+  return m && isUuid(m[1]) ? { inviteId: m[1], secret: m[2] } : null;
+}
+
+/** Link privato per gli ospiti di un Symposion: nel frammento il segreto che apre la sua chiave. */
+export function guestLink(origin: string, linkId: string, secret: string): string {
+  return `${origin.replace(/\/$/, '')}/s/${linkId}#${secret}`;
+}
+
+export function parseGuestLink(url: string): { linkId: string; secret: string } | null {
+  const m = /\/s\/([0-9a-f-]{36})#([A-Za-z0-9_-]{20,})$/.exec(url.trim());
+  return m && isUuid(m[1]) ? { linkId: m[1], secret: m[2] } : null;
+}
+
+export interface CreateGuestLinkRequest {
+  id: string;
+  mode: GuestMode;
+  /** le chiavi del Symposion (tutte le epoche, JSON) cifrate con il segreto del link */
+  key: SealedBox;
+  /** il nome del Symposion cifrato con il segreto del link */
+  meta: SealedBox;
+  hours: number;
+}
+
+export interface GuestLinkDetail {
+  id: string;
+  polisId: string;
+  symposionId: string;
+  mode: GuestMode;
+  key: SealedBox;
+  /** nome del Symposion (cifrato con il segreto del link) */
+  meta: SealedBox;
+  expiresAt: string;
+}
+
+export interface JoinGuestRequest {
+  signPk: string;
+  boxPk: string;
+}
+
+export interface GuestSessionResponse {
+  token: string;
+  guestId: string;
+  name: string;
+  expiresAt: string;
+}
+
+/** Quello che un ospite sa del Symposion in cui e' entrato. */
+export interface GuestContext {
+  guestId: string;
+  name: string;
+  mode: GuestMode;
+  polisId: string;
+  symposionId: string;
+  linkId: string;
+  expiresAt: string;
+  /** le persone del Symposion: chiavi pubbliche per verificare le firme; i nomi solo degli ospiti */
+  people: { id: string; signPk: string; boxPk: string; guestName?: string }[];
+}
+
+/** Personaggi del mondo greco classico per i nomi degli ospiti. */
+export const GUEST_NAMES = [
+  'Saffo', 'Ipazia', 'Pericle', 'Aspasia', 'Socrate', 'Platone', 'Aristotele', 'Euclide', 'Archimede', 'Erodoto',
+  'Tucidide', 'Ippocrate', 'Pitagora', 'Eraclito', 'Democrito', 'Epicuro', 'Diogene', 'Antigone', 'Elettra', 'Penelope',
+  'Odisseo', 'Achille', 'Ettore', 'Andromaca', 'Cassandra', 'Medea', 'Sofocle', 'Euripide', 'Eschilo', 'Aristofane',
+  'Esopo', 'Omero', 'Esiodo', 'Pindaro', 'Talete', 'Anassimandro', 'Parmenide', 'Zenone', 'Ipparchia', 'Diotima',
+  'Temistocle', 'Solone', 'Clistene', 'Fidia', 'Prassitele', 'Eratostene', 'Aristarco', 'Teofrasto', 'Callimaco', 'Corinna',
+] as const;
+
+/**
+ * Un nome per un nuovo ospite, diverso da quelli gia' presenti. Esauriti i nomi, si aggiunge un
+ * numero romano ("Saffo II"). `rand` in [0, 1).
+ */
+export function pickGuestName(taken: Iterable<string>, rand: () => number): string {
+  const used = new Set(taken);
+  const free = GUEST_NAMES.filter((n) => !used.has(n));
+  if (free.length) return free[Math.floor(rand() * free.length)];
+  const roman = ['II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+  for (const r of roman) {
+    const options = GUEST_NAMES.map((n) => `${n} ${r}`).filter((n) => !used.has(n));
+    if (options.length) return options[Math.floor(rand() * options.length)];
+  }
+  return `${GUEST_NAMES[Math.floor(rand() * GUEST_NAMES.length)]} ${Math.floor(rand() * 1000)}`;
+}
+
+// ---------------------------------------------------------------- documenti
+
+/**
+ * Un documento ha due flussi Yjs cifrati con la chiave del Symposion: il testo e gli Scholia
+ * (commenti). Sono separati perche' il server, che non legge nulla, possa far rispettare i ruoli:
+ * un ospite con il link "puo' commentare" scrive solo negli Scholia.
  */
 export const STREAMS = ['text', 'scholia'] as const;
 export type Stream = (typeof STREAMS)[number];
@@ -250,8 +399,8 @@ export const isStream = (x: unknown): x is Stream => (STREAMS as readonly unknow
 export type EntryKind = 'update' | 'snapshot';
 export const isEntryKind = (x: unknown): x is EntryKind => x === 'update' || x === 'snapshot';
 
-export function canPush(role: Role, stream: Stream): boolean {
-  return stream === 'text' ? can.write(role) : can.comment(role);
+export function canPush(role: Role, stream: Stream, mode?: GuestMode): boolean {
+  return stream === 'text' ? can.write(role, mode) : can.comment(role);
 }
 
 /** Limiti delle buste (in caratteri base64url): una modifica e' piccola, uno stato intero meno. */
@@ -259,36 +408,37 @@ export const MAX_UPDATE = 512 * 1024;
 export const MAX_SNAPSHOT = 4 * 1024 * 1024;
 
 /**
- * Testo firmato (Ed25519) dall'autore di ogni voce: il server verifica che l'abbia scritta un membro
- * con il diritto di farlo, gli altri client che nessuno l'abbia alterata o attribuita ad altri.
+ * Testo firmato (Ed25519) dall'autore di ogni voce: il server verifica che l'abbia scritta chi ne ha
+ * il diritto, gli altri client che nessuno l'abbia alterata o attribuita ad altri.
  */
-export const logMessage = (tomosId: string, stream: Stream, kind: EntryKind, box: SealedBox) =>
-  `athenai:tomos-log:v1:${tomosId}:${stream}:${kind}:${box.e}:${box.n}:${box.c}`;
+export const logMessage = (documentId: string, stream: Stream, kind: EntryKind, box: SealedBox) =>
+  `athenai:doc-log:v1:${documentId}:${stream}:${kind}:${box.e}:${box.n}:${box.c}`;
 
 export interface LogEntry {
   seq: number;
   stream: Stream;
   kind: EntryKind;
+  /** account o ospite */
   author: string;
   /**
-   * chiave Ed25519 dell'autore secondo il server: serve per chi non e' piu' membro. Per i membri
-   * vale quella della Polis. Il server non puo' comunque fabbricare voci: non ha la chiave dell'Oikos.
+   * chiave Ed25519 dell'autore secondo il server: serve per chi non c'e' piu'. Per i membri e gli
+   * ospiti presenti vale quella nota. Il server non puo' comunque fabbricare voci: non ha la chiave.
    */
   authorPk: string;
   box: SealedBox;
   sig: string;
 }
 
-export interface TomosView {
+export interface DocumentView {
   id: string;
-  oikosId: string;
-  /** titolo, cifrato con la chiave dell'Oikos */
+  symposionId: string;
+  /** titolo, cifrato con la chiave del Symposion */
   meta: SealedBox;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface CreateTomosRequest {
+export interface CreateDocumentRequest {
   id: string;
   meta: SealedBox;
 }
@@ -298,21 +448,21 @@ export interface CreateTomosRequest {
 /** Messaggi dal client al server sulla connessione /v1/live (WebSocket). */
 export type ClientMessage =
   | { t: 'auth'; token: string }
-  | { t: 'sub'; tomosId: string }
-  | { t: 'unsub'; tomosId: string }
-  | { t: 'push'; ref: number; tomosId: string; stream: Stream; kind: EntryKind; box: SealedBox; sig: string; covers?: number }
-  | { t: 'aw'; tomosId: string; box: SealedBox | null };
+  | { t: 'sub'; documentId: string }
+  | { t: 'unsub'; documentId: string }
+  | { t: 'push'; ref: number; documentId: string; stream: Stream; kind: EntryKind; box: SealedBox; sig: string; covers?: number }
+  | { t: 'aw'; documentId: string; box: SealedBox | null };
 
 /** Messaggi dal server: il registro, le voci nuove, la presenza e gli avvisi di cambiamento. */
 export type ServerMessage =
   | { t: 'ready' }
-  | { t: 'log'; tomosId: string; entries: LogEntry[] }
-  | { t: 'entry'; tomosId: string; entry: LogEntry }
+  | { t: 'log'; documentId: string; entries: LogEntry[] }
+  | { t: 'entry'; documentId: string; entry: LogEntry }
   | { t: 'ack'; ref: number; seq: number }
   /** presenza di un'altra connessione (cid); box null = se n'e' andata */
-  | { t: 'aw'; tomosId: string; from: string; cid: string; box: SealedBox | null }
+  | { t: 'aw'; documentId: string; from: string; cid: string; box: SealedBox | null }
   | { t: 'polis'; polisId: string }
-  | { t: 'keryx' }
+  | { t: 'notice' }
   | { t: 'err'; ref?: number; error: string };
 
 /** Legge e valida un messaggio del client; null se non e' ben formato. */
@@ -329,49 +479,49 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return isB64url(m.token, 128) ? { t: 'auth', token: m.token } : null;
     case 'sub':
     case 'unsub':
-      return isUuid(m.tomosId) ? { t: m.t, tomosId: m.tomosId } : null;
+      return isUuid(m.documentId) ? { t: m.t, documentId: m.documentId } : null;
     case 'push': {
       const max = m.kind === 'snapshot' ? MAX_SNAPSHOT : MAX_UPDATE;
-      if (!Number.isInteger(m.ref) || !isUuid(m.tomosId) || !isStream(m.stream) || !isEntryKind(m.kind)) return null;
+      if (!Number.isInteger(m.ref) || !isUuid(m.documentId) || !isStream(m.stream) || !isEntryKind(m.kind)) return null;
       if (!isSealedBox(m.box, max) || !isB64url(m.sig, 128)) return null;
       const covers = m.covers;
       if (m.kind === 'snapshot' ? !(Number.isInteger(covers) && (covers as number) >= 0) : covers !== undefined) return null;
-      return { t: 'push', ref: m.ref as number, tomosId: m.tomosId, stream: m.stream, kind: m.kind, box: m.box, sig: m.sig, ...(m.kind === 'snapshot' ? { covers: covers as number } : {}) };
+      return { t: 'push', ref: m.ref as number, documentId: m.documentId, stream: m.stream, kind: m.kind, box: m.box, sig: m.sig, ...(m.kind === 'snapshot' ? { covers: covers as number } : {}) };
     }
     case 'aw':
-      return isUuid(m.tomosId) && (m.box === null || isSealedBox(m.box, 8192)) ? { t: 'aw', tomosId: m.tomosId, box: m.box as SealedBox | null } : null;
+      return isUuid(m.documentId) && (m.box === null || isSealedBox(m.box, 8192)) ? { t: 'aw', documentId: m.documentId, box: m.box as SealedBox | null } : null;
     default:
       return null;
   }
 }
 
-// ---------------------------------------------------------------- Keryx (notifiche)
+// ---------------------------------------------------------------- notifiche
 
 /** Che cosa dice una notifica: la vede solo il destinatario (sealed box verso la sua chiave). */
-export interface KeryxNotice {
+export interface Notice {
   kind: 'mention';
   polisId: string;
-  oikosId: string;
-  tomosId: string;
-  /** lo Scholion in cui si e' chiamati (si apre con la notifica) */
+  symposionId: string;
+  documentId: string;
+  /** il commento in cui si e' chiamati (si apre con la notifica) */
   scholionId?: string;
   /** chi l'ha mandata (deve firmarla) */
   from: string;
-  /** il testo dello Scholion, accorciato */
+  /** il testo del commento, accorciato */
   excerpt: string;
   at: string;
 }
 
 /** Testo firmato dal mittente: legato al destinatario, non si puo' girare ad altri. */
-export const keryxMessage = (to: string, payload: string) => `athenai:keryx:v1:${to}:${payload}`;
+export const noticeMessage = (to: string, payload: string) => `athenai:notice:v1:${to}:${payload}`;
 
-export interface KeryxItem {
+export interface NoticeItem {
   id: string;
-  /** sealed box con { payload, sig }, payload = JSON di KeryxNotice */
+  /** sealed box con { payload, sig }, payload = JSON di Notice */
   sealed: string;
   createdAt: string;
 }
 
-export interface SendKeryxRequest {
+export interface SendNoticesRequest {
   to: { accountId: string; sealed: string }[];
 }
