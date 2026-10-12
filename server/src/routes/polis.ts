@@ -19,6 +19,7 @@ import {
 } from '@athenai/protocol';
 import type { Sql } from '../db.ts';
 import type { Auth } from '../auth.ts';
+import type { Hub } from '../live.ts';
 
 const bad = (reply: FastifyReply, error = 'bad-request', code = 400) => reply.code(code).send({ error });
 const isSealedKey = (x: unknown) => isB64url(x, 256);
@@ -28,7 +29,7 @@ async function roleIn(sql: Sql, polisId: string, accountId: string): Promise<Rol
   return r?.role ?? null;
 }
 
-export function polisRoutes(app: FastifyInstance, sql: Sql, auth: Auth) {
+export function polisRoutes(app: FastifyInstance, sql: Sql, auth: Auth, hub: Hub) {
   const pre = { preHandler: auth.require };
 
   // ---------------------------------------------------------------- Polis
@@ -101,6 +102,7 @@ export function polisRoutes(app: FastifyInstance, sql: Sql, auth: Auth) {
     if (!isUuid(id) || !isSealedBox(b?.profile, 4096)) return bad(reply);
     if (!(await roleIn(sql, id, req.accountId))) return bad(reply, 'not-found', 404);
     await sql`update polis_members set profile = ${sql.json(b.profile as never)} where polis_id = ${id} and account_id = ${req.accountId}`;
+    await hub.polisChanged(id);
     return { ok: true };
   });
 
@@ -118,6 +120,7 @@ export function polisRoutes(app: FastifyInstance, sql: Sql, auth: Auth) {
       if (n < 1) throw new Error('last-archon');
       return true;
     }).catch(() => false);
+    if (ok) await hub.polisChanged(id);
     return ok ? { ok: true } : bad(reply, 'last-archon', 409);
   });
 
@@ -139,6 +142,10 @@ export function polisRoutes(app: FastifyInstance, sql: Sql, auth: Auth) {
       await tx`update polis set rotation_needed = true where id = ${id}`;
       return true;
     }).catch(() => false);
+    if (ok) {
+      await hub.evict(accountId, id);
+      await hub.polisChanged(id, [accountId]);
+    }
     return ok ? { ok: true } : bad(reply, 'cannot-remove', 409);
   });
 
@@ -167,6 +174,7 @@ export function polisRoutes(app: FastifyInstance, sql: Sql, auth: Auth) {
       await tx`delete from invites where polis_id = ${id}`;
       return true;
     }).catch(() => false);
+    if (ok) await hub.polisChanged(id);
     return ok ? { ok: true } : bad(reply, 'bad-rotation', 409);
   });
 
@@ -185,6 +193,7 @@ export function polisRoutes(app: FastifyInstance, sql: Sql, auth: Auth) {
     if (p.rotation_needed || b.key.e !== p.epoch) return bad(reply, 'rotate-first', 409);
     await sql`insert into invites (id, polis_id, role, key, epoch, expires_at, uses_left)
       values (${b.id}, ${id}, ${b.role}, ${sql.json(b.key as never)}, ${p.epoch}, now() + make_interval(hours => ${hours}), ${uses})`;
+    await hub.polisChanged(id);
     return { id: b.id };
   });
 
@@ -194,6 +203,7 @@ export function polisRoutes(app: FastifyInstance, sql: Sql, auth: Auth) {
     const me = await roleIn(sql, id, req.accountId);
     if (!me || !can.govern(me)) return bad(reply, 'forbidden', 403);
     await sql`delete from invites where id = ${inviteId} and polis_id = ${id}`;
+    await hub.polisChanged(id);
     return { ok: true };
   });
 
@@ -223,6 +233,7 @@ export function polisRoutes(app: FastifyInstance, sql: Sql, auth: Auth) {
       }
       return i.polis_id;
     }).catch(() => null);
+    if (polisId) await hub.polisChanged(polisId);
     return polisId ? { polisId } : bad(reply, 'not-found', 404);
   });
 
@@ -244,6 +255,7 @@ export function polisRoutes(app: FastifyInstance, sql: Sql, auth: Auth) {
     } catch {
       return bad(reply, 'conflict', 409);
     }
+    await hub.polisChanged(id);
     return { id: b.id };
   });
 }

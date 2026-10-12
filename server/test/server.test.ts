@@ -4,7 +4,7 @@ import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 import _sodium from 'libsodium-wrappers-sumo';
 import postgres from 'postgres';
 import type { FastifyInstance } from 'fastify';
-import { authMessage, registerMessage, AD, type SealedBox, type PolisDetail } from '@athenai/protocol';
+import { authMessage, registerMessage, logMessage, AD, type SealedBox, type PolisDetail, type Stream, type EntryKind, type ServerMessage, type TomosView, type LogEntry, type KeryxItem } from '@athenai/protocol';
 import { buildApp } from '../src/app.ts';
 import { migrate, type Sql } from '../src/db.ts';
 
@@ -273,6 +273,204 @@ describe('rotazione delle chiavi', () => {
   });
 });
 
+// ---------------------------------------------------------------- P3: Tomos, tempo reale, Keryx
+
+const SECRET_TEXT = 'Testo-segreto-del-Tomos';
+
+async function newOikos(owner: User, polisId: string, polisKey: Uint8Array, epoch = 1) {
+  const id = crypto.randomUUID();
+  const key = s.crypto_aead_xchacha20poly1305_ietf_keygen();
+  const r = await call('POST', `/v1/polis/${polisId}/oikos`, { id, meta: seal(key, '{}', AD.oikosMeta(id), 1), key: seal(polisKey, key, AD.oikosKey(id, 1), epoch) }, owner.token);
+  expect(r.status).toBe(200);
+  return { id, key };
+}
+
+async function newTomos(u: User, oikosId: string, key: Uint8Array, epoch = 1) {
+  const id = crypto.randomUUID();
+  const r = await call('POST', `/v1/oikos/${oikosId}/tomos`, { id, meta: seal(key, JSON.stringify({ title: SECRET_TEXT }), AD.tomosMeta(id), epoch) }, u.token);
+  return { id, status: r.status };
+}
+
+function entry(u: User, key: Uint8Array, tomosId: string, stream: Stream, kind: EntryKind, data: string, epoch = 1) {
+  const box = seal(key, data, AD.tomosLog(tomosId, stream, kind, u.accountId), epoch);
+  return { box, sig: b64(s.crypto_sign_detached(logMessage(tomosId, stream, kind, box), u.sign.privateKey)) };
+}
+
+/** Una connessione /v1/live con la coda dei messaggi ricevuti. */
+async function live(u: User) {
+  const ws = await app.injectWS('/v1/live');
+  const inbox: ServerMessage[] = [];
+  ws.on('message', (d: Buffer) => inbox.push(JSON.parse(String(d))));
+  const next = async <T extends ServerMessage['t']>(t: T, pred: (m: Extract<ServerMessage, { t: T }>) => boolean = () => true, ms = 3000) => {
+    const deadline = Date.now() + ms;
+    for (;;) {
+      const i = inbox.findIndex((m) => m.t === t && pred(m as Extract<ServerMessage, { t: T }>));
+      if (i >= 0) return inbox.splice(i, 1)[0] as Extract<ServerMessage, { t: T }>;
+      if (Date.now() > deadline) throw new Error(`nessun messaggio ${t}`);
+      await new Promise((r) => setTimeout(r, 20));
+    }
+  };
+  const send = (m: object) => ws.send(JSON.stringify(m));
+  send({ t: 'auth', token: u.token });
+  await next('ready');
+  return { ws, inbox, next, send };
+}
+
+async function polisWith(roles: string[]) {
+  const a = await newUser();
+  const { id, key } = await newPolis(a);
+  const others: User[] = [];
+  for (const role of roles) {
+    const u = await newUser();
+    const inv = await invite(a, id, key, 1, role);
+    await accept(u, inv.id, inv.secret);
+    others.push(u);
+  }
+  const oikos = await newOikos(a, id, key);
+  return { a, others, polisId: id, polisKey: key, oikos };
+}
+
+describe('Tomos', () => {
+  it('Polites crea, Mentore e Xenos no; chi non e\' membro non vede nulla; epoca vecchia rifiutata', async () => {
+    const { a, others: [p, m, x], oikos } = await polisWith(['polites', 'mentore', 'xenos']);
+    const outsider = await newUser();
+    expect((await newTomos(p, oikos.id, oikos.key)).status).toBe(200);
+    expect((await newTomos(m, oikos.id, oikos.key)).status).toBe(403);
+    expect((await newTomos(x, oikos.id, oikos.key)).status).toBe(403);
+    expect((await newTomos(outsider, oikos.id, oikos.key)).status).toBe(404);
+    expect((await newTomos(a, oikos.id, oikos.key, 2)).status).toBe(409);
+    const list = await call<TomosView[]>('GET', `/v1/oikos/${oikos.id}/tomos`, undefined, x.token);
+    expect(list.json).toHaveLength(1);
+    expect(JSON.parse(s.to_string(open(oikos.key, list.json[0].meta, AD.tomosMeta(list.json[0].id)))).title).toBe(SECRET_TEXT);
+    expect((await call('GET', `/v1/oikos/${oikos.id}/tomos`, undefined, outsider.token)).status).toBe(404);
+    expect((await call('DELETE', `/v1/tomos/${list.json[0].id}`, undefined, x.token)).status).toBe(403);
+    expect((await call('DELETE', `/v1/tomos/${list.json[0].id}`, undefined, p.token)).status).toBe(200);
+  });
+});
+
+describe('tempo reale', () => {
+  it('modifiche firmate inoltrate agli altri; firme false e ruoli sbagliati rifiutati', async () => {
+    const { a, others: [m, x], oikos } = await polisWith(['mentore', 'xenos']);
+    const t = await newTomos(a, oikos.id, oikos.key);
+    const la = await live(a);
+    const lm = await live(m);
+    const lx = await live(x);
+    for (const l of [la, lm, lx]) {
+      l.send({ t: 'sub', tomosId: t.id });
+      expect((await l.next('log')).entries).toEqual([]);
+    }
+    la.send({ t: 'push', ref: 1, tomosId: t.id, stream: 'text', kind: 'update', ...entry(a, oikos.key, t.id, 'text', 'update', SECRET_TEXT) });
+    expect((await la.next('ack')).ref).toBe(1);
+    const got = await lx.next('entry');
+    expect(got.entry.author).toBe(a.accountId);
+    expect(s.to_string(open(oikos.key, got.entry.box, AD.tomosLog(t.id, 'text', 'update', a.accountId)))).toBe(SECRET_TEXT);
+    // il Mentore non scrive nel testo, ma negli Scholia si'
+    lm.send({ t: 'push', ref: 2, tomosId: t.id, stream: 'text', kind: 'update', ...entry(m, oikos.key, t.id, 'text', 'update', 'x') });
+    expect((await lm.next('err')).error).toBe('forbidden');
+    lm.send({ t: 'push', ref: 3, tomosId: t.id, stream: 'scholia', kind: 'update', ...entry(m, oikos.key, t.id, 'scholia', 'update', 'nota') });
+    expect((await lm.next('ack')).ref).toBe(3);
+    // lo Xenos legge soltanto
+    lx.send({ t: 'push', ref: 4, tomosId: t.id, stream: 'scholia', kind: 'update', ...entry(x, oikos.key, t.id, 'scholia', 'update', 'x') });
+    expect((await lx.next('err')).error).toBe('forbidden');
+    // una voce firmata da altri (il Mentore che si spaccia per l'Archon) non passa
+    const forged = entry(a, oikos.key, t.id, 'scholia', 'update', 'x');
+    lm.send({ t: 'push', ref: 5, tomosId: t.id, stream: 'scholia', kind: 'update', box: forged.box, sig: forged.sig });
+    expect((await lm.next('err')).error).toBe('bad-signature');
+    // presenza: arriva agli altri con l'id della connessione, e sparisce quando si chiude
+    lm.send({ t: 'aw', tomosId: t.id, box: seal(oikos.key, 'cursore', AD.awareness(t.id, m.accountId), 1) });
+    const aw = await la.next('aw', (x) => x.box !== null);
+    expect(aw.from).toBe(m.accountId);
+    lm.ws.terminate();
+    expect((await la.next('aw', (x) => x.cid === aw.cid && x.box === null)).from).toBe(m.accountId);
+    for (const l of [la, lx]) l.ws.close();
+  });
+
+  it('uno stato intero sostituisce le voci che copre', async () => {
+    const { a, oikos } = await polisWith([]);
+    const t = await newTomos(a, oikos.id, oikos.key);
+    const la = await live(a);
+    la.send({ t: 'sub', tomosId: t.id });
+    await la.next('log');
+    const seqs: number[] = [];
+    for (let i = 1; i <= 3; i++) {
+      la.send({ t: 'push', ref: i, tomosId: t.id, stream: 'text', kind: 'update', ...entry(a, oikos.key, t.id, 'text', 'update', `u${i}`) });
+      seqs.push((await la.next('ack', (m) => m.ref === i)).seq);
+    }
+    la.send({ t: 'push', ref: 9, tomosId: t.id, stream: 'scholia', kind: 'update', ...entry(a, oikos.key, t.id, 'scholia', 'update', 's') });
+    await la.next('ack', (m) => m.ref === 9);
+    la.send({ t: 'push', ref: 10, tomosId: t.id, stream: 'text', kind: 'snapshot', covers: seqs[1], ...entry(a, oikos.key, t.id, 'text', 'snapshot', 'u1+u2') });
+    await la.next('ack', (m) => m.ref === 10);
+    const log = (await call<LogEntry[]>('GET', `/v1/tomos/${t.id}/log`, undefined, a.token)).json;
+    // restano: la terza modifica, lo Scholion e lo stato intero
+    expect(log.map((e) => `${e.stream}:${e.kind}`)).toEqual(['text:update', 'scholia:update', 'text:snapshot']);
+    expect(log[0].seq).toBe(seqs[2]);
+    la.ws.close();
+  });
+
+  it('avvisi della Polis al posto del ricaricamento; chi esce smette di ricevere; dopo la rotazione serve la chiave nuova', async () => {
+    const { a, others: [b], polisId, polisKey, oikos } = await polisWith(['polites']);
+    const t = await newTomos(a, oikos.id, oikos.key);
+    const la = await live(a);
+    const lb = await live(b);
+    lb.send({ t: 'sub', tomosId: t.id });
+    await lb.next('log');
+    // un Oikos nuovo: tutti i membri lo sanno subito
+    await newOikos(a, polisId, polisKey);
+    expect((await lb.next('polis')).polisId).toBe(polisId);
+    await la.next('polis');
+    // b viene allontanato: riceve l'avviso e non riceve piu' le modifiche
+    expect((await call('DELETE', `/v1/polis/${polisId}/members/${b.accountId}`, undefined, a.token)).status).toBe(200);
+    await lb.next('polis');
+    la.send({ t: 'push', ref: 1, tomosId: t.id, stream: 'text', kind: 'update', ...entry(a, oikos.key, t.id, 'text', 'update', 'dopo') });
+    await la.next('ack');
+    await expect(lb.next('entry', () => true, 300)).rejects.toThrow();
+    lb.send({ t: 'sub', tomosId: t.id });
+    expect((await lb.next('err')).error).toBe('not-found');
+    // rotazione: l'Oikos passa all'epoca 2 e le voci con la chiave vecchia sono rifiutate
+    const key2 = s.crypto_aead_xchacha20poly1305_ietf_keygen();
+    const d = (await call<PolisDetail>('GET', `/v1/polis/${polisId}`, undefined, a.token)).json;
+    const rot = await call('POST', `/v1/polis/${polisId}/rotate`, {
+      epoch: 2,
+      envelopes: [{ accountId: a.accountId, sealed: b64(s.crypto_box_seal(key2, a.box.publicKey)) }],
+      prev: seal(key2, polisKey, AD.keyChain(polisId, 2), 2),
+      oikos: d.oikos.map((o) => ({ oikosId: o.id, key: seal(key2, s.crypto_aead_xchacha20poly1305_ietf_keygen(), AD.oikosKey(o.id, 2), 2) })),
+      meta: seal(key2, '{}', AD.polisMeta(polisId), 2),
+    }, a.token);
+    expect(rot.status).toBe(200);
+    la.send({ t: 'push', ref: 2, tomosId: t.id, stream: 'text', kind: 'update', ...entry(a, oikos.key, t.id, 'text', 'update', 'vecchia') });
+    expect((await la.next('err', (m) => m.ref === 2)).error).toBe('stale-key');
+    la.ws.close();
+    lb.ws.close();
+  });
+
+  it('senza autenticazione la connessione si chiude', async () => {
+    const ws = await app.injectWS('/v1/live');
+    const closed = new Promise<number>((r) => ws.on('close', (code: number) => r(code)));
+    ws.send(JSON.stringify({ t: 'sub', tomosId: crypto.randomUUID() }));
+    expect(await closed).toBe(4401);
+  });
+});
+
+describe('Keryx', () => {
+  it('notifica cifrata solo verso membri; il destinatario la riceve subito e la cancella', async () => {
+    const { a, others: [b], polisId } = await polisWith(['polites']);
+    const outsider = await newUser();
+    const lb = await live(b);
+    const sealed = b64(s.crypto_box_seal(SECRET_TEXT, b.box.publicKey));
+    expect((await call('POST', `/v1/polis/${polisId}/keryx`, { to: [{ accountId: outsider.accountId, sealed }] }, a.token)).status).toBe(400);
+    expect((await call('POST', `/v1/polis/${polisId}/keryx`, { to: [{ accountId: b.accountId, sealed }] }, outsider.token)).status).toBe(404);
+    expect((await call('POST', `/v1/polis/${polisId}/keryx`, { to: [{ accountId: b.accountId, sealed }] }, a.token)).status).toBe(200);
+    await lb.next('keryx');
+    const list = (await call<KeryxItem[]>('GET', '/v1/me/keryx', undefined, b.token)).json;
+    expect(list).toHaveLength(1);
+    expect(s.to_string(s.crypto_box_seal_open(unb64(list[0].sealed), b.box.publicKey, b.box.privateKey))).toBe(SECRET_TEXT);
+    expect((await call<KeryxItem[]>('GET', '/v1/me/keryx', undefined, a.token)).json).toHaveLength(0);
+    await call('DELETE', `/v1/me/keryx/${list[0].id}`, undefined, b.token);
+    expect((await call<KeryxItem[]>('GET', '/v1/me/keryx', undefined, b.token)).json).toHaveLength(0);
+    lb.ws.close();
+  });
+});
+
 describe('il server non vede contenuti in chiaro', () => {
   it('nessun nome di Polis, Oikos o profilo in chiaro in tutto il database', async () => {
     const a = await newUser();
@@ -284,6 +482,7 @@ describe('il server non vede contenuti in chiaro', () => {
       expect(dump.includes(MARKER), tablename).toBe(false);
       expect(dump.includes('Pericle'), tablename).toBe(false);
       expect(dump.includes('Aspasia'), tablename).toBe(false);
+      expect(dump.includes(SECRET_TEXT), tablename).toBe(false);
     }
   });
 });

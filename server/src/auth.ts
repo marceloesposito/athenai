@@ -60,13 +60,18 @@ export class Auth {
     return { token, expiresAt: expires.toISOString() };
   }
 
+  /** l'account di un token di sessione valido, o null */
+  async accountFor(token: string): Promise<string | null> {
+    const [row] = await this.sql<{ account_id: string }[]>`select account_id from sessions where token_hash = ${sha256(token)} and expires_at > now()`;
+    return row?.account_id ?? null;
+  }
+
   /** preHandler: richiede una sessione valida e mette l'account nella richiesta */
   require = async (req: FastifyRequest, reply: FastifyReply) => {
     const m = /^Bearer ([A-Za-z0-9_-]{20,})$/.exec(req.headers.authorization ?? '');
-    if (!m) return reply.code(401).send({ error: 'unauthorized' });
-    const [row] = await this.sql<{ account_id: string }[]>`select account_id from sessions where token_hash = ${sha256(m[1])} and expires_at > now()`;
-    if (!row) return reply.code(401).send({ error: 'unauthorized' });
-    req.accountId = row.account_id;
+    const account = m ? await this.accountFor(m[1]) : null;
+    if (!account) return reply.code(401).send({ error: 'unauthorized' });
+    req.accountId = account;
   };
 }
 
