@@ -11,7 +11,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export async function launch() {
   const dir = `${process.env.TEMP ?? '/tmp'}/alexandria-cdp-${Date.now()}`;
-  const proc = spawn(CHROME, ['--headless=new', '--disable-gpu', `--remote-debugging-port=${PORT}`, `--user-data-dir=${dir}`, '--window-size=1440,900', 'about:blank'], { stdio: 'ignore' });
+  const proc = spawn(CHROME, ['--headless=new', '--disable-gpu', `--remote-debugging-port=${PORT}`, `--user-data-dir=${dir}`, '--window-size=1440,900', '--lang=en-US', '--accept-lang=en-US', 'about:blank'], { stdio: 'ignore' });
   for (let i = 0; i < 50; i++) {
     try {
       const r = await fetch(`http://127.0.0.1:${PORT}/json/version`);

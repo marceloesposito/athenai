@@ -20,7 +20,7 @@ export const can = {
   govern: (r: Role) => r === 'archon',
   /** creare Oikos e scrivere nei contenuti */
   write: (r: Role) => r === 'archon' || r === 'polites',
-  /** commentare e proporre modifiche (dalla fase P3) */
+  /** commentare (Scholia) e proporre modifiche */
   comment: (r: Role) => r !== 'xenos',
   read: (_r: Role) => true,
 };
@@ -53,6 +53,11 @@ export const AD = {
   keyChain: (polisId: string, epoch: number) => `athenai:key-chain:v1:${polisId}:${epoch}`,
   invite: (inviteId: string) => `athenai:invite:v1:${inviteId}`,
   prefs: (accountId: string) => `athenai:prefs:v1:${accountId}`,
+  tomosMeta: (tomosId: string) => `athenai:tomos-meta:v1:${tomosId}`,
+  /** voce del registro di un Tomos: lega flusso, tipo e autore */
+  tomosLog: (tomosId: string, stream: Stream, kind: EntryKind, author: string) => `athenai:tomos-log:v1:${tomosId}:${stream}:${kind}:${author}`,
+  /** cursori e presenza (Symposion): effimeri, mai salvati */
+  awareness: (tomosId: string, accountId: string) => `athenai:awareness:v1:${tomosId}:${accountId}`,
 };
 
 const B64URL = /^[A-Za-z0-9_-]+$/;
@@ -228,4 +233,145 @@ export interface RotateRequest {
   oikos: { oikosId: string; key: SealedBox }[];
   /** il nome della Polis cifrato con la nuova chiave */
   meta: SealedBox;
+}
+
+// ---------------------------------------------------------------- Tomos (P3)
+
+/**
+ * Un Tomos ha due flussi Yjs cifrati con la chiave dell'Oikos: il testo e gli Scholia. Sono
+ * separati perche' il server, che non legge nulla, possa comunque far rispettare i ruoli: il
+ * Mentore scrive solo negli Scholia, lo Xenos in nessuno dei due.
+ */
+export const STREAMS = ['text', 'scholia'] as const;
+export type Stream = (typeof STREAMS)[number];
+export const isStream = (x: unknown): x is Stream => (STREAMS as readonly unknown[]).includes(x);
+
+/** update = modifica Yjs; snapshot = stato intero che sostituisce le voci fino a `covers` */
+export type EntryKind = 'update' | 'snapshot';
+export const isEntryKind = (x: unknown): x is EntryKind => x === 'update' || x === 'snapshot';
+
+export function canPush(role: Role, stream: Stream): boolean {
+  return stream === 'text' ? can.write(role) : can.comment(role);
+}
+
+/** Limiti delle buste (in caratteri base64url): una modifica e' piccola, uno stato intero meno. */
+export const MAX_UPDATE = 512 * 1024;
+export const MAX_SNAPSHOT = 4 * 1024 * 1024;
+
+/**
+ * Testo firmato (Ed25519) dall'autore di ogni voce: il server verifica che l'abbia scritta un membro
+ * con il diritto di farlo, gli altri client che nessuno l'abbia alterata o attribuita ad altri.
+ */
+export const logMessage = (tomosId: string, stream: Stream, kind: EntryKind, box: SealedBox) =>
+  `athenai:tomos-log:v1:${tomosId}:${stream}:${kind}:${box.e}:${box.n}:${box.c}`;
+
+export interface LogEntry {
+  seq: number;
+  stream: Stream;
+  kind: EntryKind;
+  author: string;
+  /**
+   * chiave Ed25519 dell'autore secondo il server: serve per chi non e' piu' membro. Per i membri
+   * vale quella della Polis. Il server non puo' comunque fabbricare voci: non ha la chiave dell'Oikos.
+   */
+  authorPk: string;
+  box: SealedBox;
+  sig: string;
+}
+
+export interface TomosView {
+  id: string;
+  oikosId: string;
+  /** titolo, cifrato con la chiave dell'Oikos */
+  meta: SealedBox;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTomosRequest {
+  id: string;
+  meta: SealedBox;
+}
+
+// ---------------------------------------------------------------- tempo reale
+
+/** Messaggi dal client al server sulla connessione /v1/live (WebSocket). */
+export type ClientMessage =
+  | { t: 'auth'; token: string }
+  | { t: 'sub'; tomosId: string }
+  | { t: 'unsub'; tomosId: string }
+  | { t: 'push'; ref: number; tomosId: string; stream: Stream; kind: EntryKind; box: SealedBox; sig: string; covers?: number }
+  | { t: 'aw'; tomosId: string; box: SealedBox | null };
+
+/** Messaggi dal server: il registro, le voci nuove, la presenza e gli avvisi di cambiamento. */
+export type ServerMessage =
+  | { t: 'ready' }
+  | { t: 'log'; tomosId: string; entries: LogEntry[] }
+  | { t: 'entry'; tomosId: string; entry: LogEntry }
+  | { t: 'ack'; ref: number; seq: number }
+  /** presenza di un'altra connessione (cid); box null = se n'e' andata */
+  | { t: 'aw'; tomosId: string; from: string; cid: string; box: SealedBox | null }
+  | { t: 'polis'; polisId: string }
+  | { t: 'keryx' }
+  | { t: 'err'; ref?: number; error: string };
+
+/** Legge e valida un messaggio del client; null se non e' ben formato. */
+export function parseClientMessage(raw: string): ClientMessage | null {
+  let m: Record<string, unknown>;
+  try {
+    m = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  if (!m || typeof m !== 'object') return null;
+  switch (m.t) {
+    case 'auth':
+      return isB64url(m.token, 128) ? { t: 'auth', token: m.token } : null;
+    case 'sub':
+    case 'unsub':
+      return isUuid(m.tomosId) ? { t: m.t, tomosId: m.tomosId } : null;
+    case 'push': {
+      const max = m.kind === 'snapshot' ? MAX_SNAPSHOT : MAX_UPDATE;
+      if (!Number.isInteger(m.ref) || !isUuid(m.tomosId) || !isStream(m.stream) || !isEntryKind(m.kind)) return null;
+      if (!isSealedBox(m.box, max) || !isB64url(m.sig, 128)) return null;
+      const covers = m.covers;
+      if (m.kind === 'snapshot' ? !(Number.isInteger(covers) && (covers as number) >= 0) : covers !== undefined) return null;
+      return { t: 'push', ref: m.ref as number, tomosId: m.tomosId, stream: m.stream, kind: m.kind, box: m.box, sig: m.sig, ...(m.kind === 'snapshot' ? { covers: covers as number } : {}) };
+    }
+    case 'aw':
+      return isUuid(m.tomosId) && (m.box === null || isSealedBox(m.box, 8192)) ? { t: 'aw', tomosId: m.tomosId, box: m.box as SealedBox | null } : null;
+    default:
+      return null;
+  }
+}
+
+// ---------------------------------------------------------------- Keryx (notifiche)
+
+/** Che cosa dice una notifica: la vede solo il destinatario (sealed box verso la sua chiave). */
+export interface KeryxNotice {
+  kind: 'mention';
+  polisId: string;
+  oikosId: string;
+  tomosId: string;
+  /** lo Scholion in cui si e' chiamati (si apre con la notifica) */
+  scholionId?: string;
+  /** chi l'ha mandata (deve firmarla) */
+  from: string;
+  /** il testo dello Scholion, accorciato */
+  excerpt: string;
+  at: string;
+}
+
+/** Testo firmato dal mittente: legato al destinatario, non si puo' girare ad altri. */
+export const keryxMessage = (to: string, payload: string) => `athenai:keryx:v1:${to}:${payload}`;
+
+export interface KeryxItem {
+  id: string;
+  /** sealed box con { payload, sig }, payload = JSON di KeryxNotice */
+  sealed: string;
+  createdAt: string;
+}
+
+export interface SendKeryxRequest {
+  to: { accountId: string; sealed: string }[];
 }

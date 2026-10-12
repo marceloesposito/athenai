@@ -95,3 +95,37 @@ alter table accounts add column if not exists prefs jsonb;
 create index if not exists polis_members_account on polis_members (account_id);
 create index if not exists oikos_polis on oikos (polis_id);
 create index if not exists sessions_expiry on sessions (expires_at);
+
+-- P3: Tomos (documenti) di un Oikos. Il titolo e' cifrato con la chiave dell'Oikos.
+create table if not exists tomos (
+  id uuid primary key,
+  oikos_id uuid not null references oikos on delete cascade,
+  meta jsonb not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- registro cifrato e firmato di ogni Tomos (Yjs: modifiche e stati interi), per flusso. Uno stato
+-- intero sostituisce le voci che copre. L'autore non e' una chiave esterna: se un account sparisce
+-- le sue modifiche restano nel documento.
+create table if not exists tomos_log (
+  seq bigint generated always as identity primary key,
+  tomos_id uuid not null references tomos on delete cascade,
+  stream text not null check (stream in ('text', 'scholia')),
+  kind text not null check (kind in ('update', 'snapshot')),
+  author uuid not null,
+  box jsonb not null,
+  sig text not null
+);
+
+-- Keryx: notifiche cifrate verso la chiave del destinatario (il server sa solo a chi e quando)
+create table if not exists keryx (
+  id uuid primary key default gen_random_uuid(),
+  account_id uuid not null references accounts on delete cascade,
+  sealed text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists tomos_oikos on tomos (oikos_id);
+create index if not exists tomos_log_tomos on tomos_log (tomos_id, seq);
+create index if not exists keryx_account on keryx (account_id, created_at);

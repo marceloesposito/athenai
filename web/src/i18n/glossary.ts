@@ -17,6 +17,14 @@ export const GLOSSARY: Record<string, GlossaryTerm> = {
   Akropolis: { pattern: /\bAkropolis\b/, avoid: [/\bAcropoli\b/, /\bAcropolis\b/] },
   Symbolon: { pattern: /\bSymbolon\b/, avoid: [] },
   Nomoi: { pattern: /\bNomoi\b/, avoid: [/\bimpostazioni\b/i, /\bsettings\b/i, /\bpreferenze\b/i, /\bpreferences\b/i] },
+  Tomos: { pattern: /\bTomo(s|i)\b/, avoid: [/\bTomo\b/] },
+  Grapheion: { pattern: /\bGrapheion\b/, avoid: [] },
+  Scholia: { pattern: /\bScholi(a|on)\b/, avoid: [/\bScolio\b/i, /\bScoli\b/i] },
+  Keryx: { pattern: /\bKeryx\b/, avoid: [/\bAraldo\b/] },
+  Heuresis: { pattern: /\bHeuresis\b/, avoid: [] },
+  Symposion: { pattern: /\bSymposion\b/, avoid: [/\bSimposio\b/] },
+  Mentore: { pattern: /\bMentore\b/, avoid: [/\bMentor\b/] },
+  Xenos: { pattern: /\bXenos\b/, avoid: [] },
 };
 
 /** Chiavi in cui `text` non rispetta il glossario rispetto al riferimento `ref` (inglese). */

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { useSession } from './state/session';
 import { usePrefs } from './state/prefs';
 import { useLang, t } from './i18n';
@@ -8,9 +8,13 @@ import { ProtectStep } from './screens/ProtectStep';
 import { Unlock } from './screens/Unlock';
 import { Akropolis } from './screens/Akropolis';
 import { PolisView } from './screens/PolisView';
+import { OikosView } from './screens/OikosView';
 import { usePolis } from './state/polis';
 import { Kylix } from './brand/Kylix';
 import { Offline } from './screens/Offline';
+
+// l'editor (TipTap) si scarica solo quando si apre un Tomos
+const Grapheion = lazy(() => import('./screens/Grapheion').then((m) => ({ default: m.Grapheion })));
 
 export default function App() {
   useLang();
@@ -38,6 +42,19 @@ export default function App() {
     case 'locked':
       return <Unlock />;
     case 'ready':
-      return view === 'polis' ? <PolisView /> : <Akropolis />;
+      switch (view) {
+        case 'polis':
+          return <PolisView />;
+        case 'oikos':
+          return <OikosView />;
+        case 'tomos':
+          return (
+            <Suspense fallback={<main className="splash" aria-busy="true"><Kylix size={56} title={t('grapheion.opening')} /></main>}>
+              <Grapheion />
+            </Suspense>
+          );
+        default:
+          return <Akropolis />;
+      }
   }
 }

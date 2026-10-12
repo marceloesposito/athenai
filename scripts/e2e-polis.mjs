@@ -3,7 +3,7 @@
 // C = account di A su un altro dispositivo, collegato tramite il relay. Nessuna finestra visibile.
 // Uso: docker compose -f deploy/compose.yml up -d --build  poi
 //      CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" node scripts/e2e-polis.mjs
-// (ATHENAI_URL per un altro indirizzo; richiede il container athenai-postgres-1 per i controlli sul DB)
+// (ATHENAI_URL per un altro indirizzo; PSQL per il comando psql, di default il container athenai-postgres-1)
 import { launch, connect } from './cdp.mjs';
 import { execSync } from 'node:child_process';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -34,7 +34,8 @@ async function newAccount(d) {
   await d.btn('Ask for the 12 words every time'); await sleep(1200);
   return words;
 }
-const psql = (q) => execSync(`docker exec athenai-postgres-1 psql -U athenai -d athenai -tAc ${JSON.stringify(q)}`).toString().trim();
+const PSQL = process.env.PSQL ?? 'docker exec athenai-postgres-1 psql -U athenai -d athenai';
+const psql = (q) => execSync(`${PSQL} -tAc ${JSON.stringify(q)}`).toString().trim();
 try {
   const A = await device('A');
   await A.nav(URL0);

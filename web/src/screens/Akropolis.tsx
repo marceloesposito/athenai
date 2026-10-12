@@ -7,13 +7,16 @@ import { usePolis } from '../state/polis';
 import { Kylix, Meander } from '../brand/Kylix';
 import { ProfileMenu } from './ProfileMenu';
 import { InviteBanner } from './InviteBanner';
+import { KeryxBell } from './KeryxBell';
 
-export function TopBar({ children }: { children?: React.ReactNode }) {
+export function TopBar({ children, end }: { children?: React.ReactNode; end?: React.ReactNode }) {
   return (
     <header className="topbar">
       <Kylix size={28} title="Athenai" />
       {children ?? <span className="topbar__name">Athenai</span>}
       <span className="topbar__spacer" />
+      {end}
+      <KeryxBell />
       <ProfileMenu />
     </header>
   );

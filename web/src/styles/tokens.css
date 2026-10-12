@@ -22,6 +22,16 @@
   --ok: #4f6f2a;
   --bad: #a83a2c;
   --focus: #1f5a8a;
+  /* Symposion: i colori delle persone presenti in un Tomos (cursori e avatar) */
+  --presence-1: #1f5a8a;
+  --presence-2: #b5532c;
+  --presence-3: #5e6b2f;
+  --presence-4: #8a4f9e;
+  --presence-5: #c08a2e;
+  --presence-6: #2e7d74;
+  /* il passo commentato da uno Scholion */
+  --scholion: rgb(192 138 46 / 0.22);
+  --scholion-active: rgb(192 138 46 / 0.45);
   --shadow: 0 1px 2px rgb(40 25 10 / 0.08), 0 6px 20px rgb(40 25 10 / 0.08);
   --radius: 10px;
   --radius-small: 6px;
@@ -50,6 +60,14 @@
   --ok: #8fb35a;
   --bad: #e07a6b;
   --focus: #6fa3d1;
+  --presence-1: #6fa3d1;
+  --presence-2: #d9744a;
+  --presence-3: #a3b067;
+  --presence-4: #c08ad4;
+  --presence-5: #d9a650;
+  --presence-6: #5fb3a8;
+  --scholion: rgb(217 166 80 / 0.2);
+  --scholion-active: rgb(217 166 80 / 0.42);
   --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 6px 20px rgb(0 0 0 / 0.35);
   color-scheme: dark;
 }
@@ -73,6 +91,14 @@
     --ok: #8fb35a;
     --bad: #e07a6b;
     --focus: #6fa3d1;
+    --presence-1: #6fa3d1;
+    --presence-2: #d9744a;
+    --presence-3: #a3b067;
+    --presence-4: #c08ad4;
+    --presence-5: #d9a650;
+    --presence-6: #5fb3a8;
+    --scholion: rgb(217 166 80 / 0.2);
+    --scholion-active: rgb(217 166 80 / 0.42);
     --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 6px 20px rgb(0 0 0 / 0.35);
     color-scheme: dark;
   }
