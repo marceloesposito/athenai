@@ -14,10 +14,16 @@ import type {
   WrappedMaster,
   SealedBox,
   Role,
+  TomosView,
+  CreateTomosRequest,
+  LogEntry,
+  KeryxItem,
+  SendKeryxRequest,
 } from '@athenai/protocol';
 import type { Binding } from '../auth';
 
-const BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
+export const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
+const BASE = API_BASE;
 
 export class ApiError extends Error {
   status: number;
@@ -30,9 +36,17 @@ export class ApiError extends Error {
 }
 
 let token: string | null = null;
+const tokenListeners = new Set<(t: string | null) => void>();
 
 export function setToken(t: string | null) {
   token = t;
+  tokenListeners.forEach((l) => l(t));
+}
+
+/** Chi deve seguire la sessione (la connessione in tempo reale). */
+export function onToken(fn: (t: string | null) => void) {
+  tokenListeners.add(fn);
+  if (token) fn(token);
 }
 
 async function call<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
@@ -84,6 +98,17 @@ export const api = {
   invite: (id: string) => call<InviteDetail>('GET', `/v1/invites/${id}`),
   acceptInvite: (id: string, r: AcceptInviteRequest) => call<{ polisId: string }>('POST', `/v1/invites/${id}/accept`, r),
   createOikos: (polisId: string, r: CreateOikosRequest) => call('POST', `/v1/polis/${polisId}/oikos`, r),
+
+  listTomos: (oikosId: string) => call<TomosView[]>('GET', `/v1/oikos/${oikosId}/tomos`),
+  createTomos: (oikosId: string, r: CreateTomosRequest) => call<{ id: string }>('POST', `/v1/oikos/${oikosId}/tomos`, r),
+  renameTomos: (tomosId: string, meta: SealedBox) => call('PUT', `/v1/tomos/${tomosId}/meta`, { meta }),
+  deleteTomos: (tomosId: string) => call('DELETE', `/v1/tomos/${tomosId}`),
+  tomosLog: (tomosId: string) => call<LogEntry[]>('GET', `/v1/tomos/${tomosId}/log`),
+
+  sendKeryx: (polisId: string, r: SendKeryxRequest) => call('POST', `/v1/polis/${polisId}/keryx`, r),
+  keryx: () => call<KeryxItem[]>('GET', '/v1/me/keryx'),
+  dropKeryx: (id: string) => call('DELETE', `/v1/me/keryx/${id}`),
+  dropAllKeryx: () => call('DELETE', '/v1/me/keryx'),
 
   linkSend: (channel: string, message: string) => call('POST', `/v1/link/${channel}`, { message }),
   linkReceive: (channel: string, signal?: AbortSignal) => call<{ message: string } | null>('GET', `/v1/link/${channel}`, undefined, signal),

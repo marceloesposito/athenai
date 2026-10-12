@@ -7,5 +7,5 @@ export default defineConfig({
   optimizeDeps: { exclude: ['libsodium-wrappers-sumo'] },
   build: { target: 'es2022', sourcemap: true },
   // in sviluppo le API vanno al server locale (npm run dev:server)
-  server: { proxy: { '/v1': 'http://localhost:8787' } },
+  server: { proxy: { '/v1': { target: 'http://localhost:8787', ws: true } } },
 });

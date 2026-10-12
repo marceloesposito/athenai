@@ -19,7 +19,8 @@ dice cosa Athenai protegge, da chi, e cosa no. Si aggiorna in ogni fase.
 | Chi riceve (o intercetta) un link d'invito | entrare nella Polis con il ruolo dell'invito, finché l'invito vale (una volta, 3 giorni) | — : per questo il link va mandato per un canale fidato; l'Archon vede chi è entrato e può allontanarlo (la chiave ruota) |
 | Chi intercetta la rete | — (TLS, e comunque contenuti cifrati end-to-end) | leggere o alterare senza essere scoperto |
 | Chi ruba il disco o i dati del browser | trovare la chiave principale avvolta | aprirla senza la passkey (impronta/volto) o senza il browser stesso (chiave non esportabile) |
-| Un ex membro di un Oikos — dalla fase P2 | leggere ciò che vedeva prima di uscire | leggere ciò che si scrive dopo (rotazione della chiave dell'Oikos) |
+| Un ex membro di un Oikos — dalla fase P2 | leggere ciò che vedeva prima di uscire | leggere ciò che si scrive dopo (rotazione della chiave dell'Oikos); ricevere ancora le modifiche (il server lo stacca subito dai Tomoi) |
+| Un membro della Polis — dalla fase P3 | scrivere ciò che il suo ruolo permette; mettere un nome falso nella propria presenza (cursore) | attribuire a un altro una modifica o uno Scholion (ogni voce è firmata dall'autore); mandare una notifica a nome di un altro (Keryx è firmato e legato al destinatario) |
 
 ## Cosa resta nel browser
 **Nulla, di default.** L'identità pubblica, la chiave principale avvolta dalla passkey e le
@@ -30,8 +31,11 @@ principale avvolta da una chiave WebCrypto non esportabile.
 
 ## Cosa sa il server
 Chiavi pubbliche, a quale account d'accesso sono legate (`sub` di Zitadel), chi è membro di quale
-Polis e con che ruolo, quanti Oikos ha una Polis, date e dimensioni dei dati cifrati. Non sa nomi
-di Polis, Oikos e persone (cifrati), né email (le ha solo Zitadel).
+Polis e con che ruolo, quanti Oikos e Tomoi ha una Polis, date e dimensioni dei dati cifrati. Dalla
+P3 anche: chi modifica quale Tomos e quando (autore, orario e dimensione di ogni voce), chi è
+connesso a un Tomos in quel momento, e a chi arriva una notifica e quando. Non sa nomi di Polis,
+Oikos, Tomoi e persone (cifrati), né il testo, gli Scholia, i cursori o le parole cercate, né email
+(le ha solo Zitadel).
 
 ## Nessun fornitore americano
 Per scelta del committente (12 ottobre 2026) nessun servizio americano: niente accesso con
@@ -59,6 +63,30 @@ uguale sui due schermi, conferma che si è inquadrato il dispositivo giusto. Il 
 controlla che l'identità ricostruita sia quella dell'account.
 
 Il relay è il server di Athenai (dalla P2): tiene il messaggio cifrato al massimo 10 minuti.
+
+## Scrivere insieme (dalla P3)
+- **Registro di un Tomos**: ogni modifica Yjs (e ogni tanto lo stato intero) è una busta
+  XChaCha20-Poly1305 con la chiave dell'Oikos, legata (AD) a Tomos, flusso, tipo e autore, e
+  **firmata** Ed25519 dall'autore. Il server verifica la firma e il ruolo prima di conservarla; i
+  client la riverificano prima di aprirla. Per un ex membro vale la chiave pubblica che il server
+  ricorda: il server non può comunque fabbricare voci, perché non ha la chiave dell'Oikos.
+- **Ruoli**: testo e Scholia sono due flussi separati; il server accetta il testo solo da Archon e
+  Polites, gli Scholia anche dal Mentore, nulla dallo Xenos. **Limite**: il controllo del ruolo
+  per flusso lo fa il server; un server malevolo potrebbe accettare testo da un Mentore (che resta
+  comunque firmato e riconoscibile).
+- **Epoca**: le voci nuove devono usare la chiave dell'epoca attuale dell'Oikos; dopo un'uscita la
+  rotazione avviene da sola e chi resta continua a scrivere con la chiave nuova (le voci vecchie si
+  aprono con la catena all'indietro).
+- **Limite: ordine e completezza.** Il server può trattenere, ritardare o ripresentare voci (Yjs
+  le applica comunque in modo coerente, ma un server malevolo potrebbe nascondere a qualcuno una
+  modifica). Mitigazione futura: orologi per autore firmati (come in secsync) per accorgersene.
+- **Presenza (Symposion)**: cursori e nomi viaggiano cifrati con la chiave dell'Oikos, senza
+  firma; il server li attribuisce alla connessione autenticata e non li conserva.
+- **Keryx**: una notifica è una sealed box verso la chiave del destinatario con dentro la firma
+  del mittente, legata al destinatario; il server sa a chi arriva e quando, e la cancella appena
+  letta (al massimo dopo 30 giorni).
+- **Heuresis**: la ricerca avviene nel browser sui testi decifrati, tenuti solo in memoria e
+  cancellati al blocco; al server non arriva nessuna parola cercata.
 
 ## Da fare prima del lancio pubblico
 - Audit indipendente (es. Radically Open Security, gratuito per i progetti NLnet).

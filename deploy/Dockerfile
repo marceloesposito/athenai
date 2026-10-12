@@ -1,5 +1,7 @@
 # Immagine di Athenai: compila l'app web e la fa servire dal server (Node con TypeScript nativo).
 FROM node:24-alpine AS build
+# logos (il nucleo condiviso) si installa da GitHub: serve git
+RUN apk add --no-cache git
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY protocol/package.json protocol/
@@ -14,6 +16,7 @@ ENV VITE_OIDC_ISSUER=$VITE_OIDC_ISSUER VITE_OIDC_CLIENT_ID=$VITE_OIDC_CLIENT_ID
 RUN npm run build -w web
 
 FROM node:24-alpine
+RUN apk add --no-cache git
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json package-lock.json ./

@@ -76,7 +76,7 @@ Markdown da `logos`).
 | P0 | Nucleo `logos` estratto da Alexandria | fatto (logos v0.1.0, Alexandria #32 #33) |
 | P1 | Repo, identità e glossario, Propylaia (Zitadel OIDC o prova), Symbolon (12 parole, passkey PRF, chiave del dispositivo), collegamento dei dispositivi, Akropolis, Nomoi, modello delle minacce | fatto |
 | P2 | Polis e Oikos cifrati: server (relay + API minime, Postgres), inviti e ruoli, consegna e rotazione delle chiavi, collegamento fra dispositivi diversi, nulla in locale di default, `docker compose` | fatto |
-| P3 | Grapheion collaborativo cifrato (secsync), cursori, Scholia con @menzioni, Keryx, Heuresis locale | |
+| P3 | Grapheion collaborativo cifrato (registro Yjs cifrato e firmato sul modello di secsync, tempo reale su WebSocket), cursori e presenza (Symposion), Scholia con @menzioni, Keryx, Heuresis locale, aggiornamento della Polis in tempo reale | fatto |
 | P4 | **Agorà**: canvas, carte, **post-it stile Miro**, connettori, Topoi e kanban, presenza | |
 | P5 | Thesauros (fonti CSL, DOI/ISBN, file cifrati), Anthologia | |
 | P6 | Anamnesis (versioni), Dokimasia (ruolo Mentore, Suggerisci), Chronika | |

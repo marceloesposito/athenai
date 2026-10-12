@@ -270,6 +270,11 @@ export interface LogEntry {
   stream: Stream;
   kind: EntryKind;
   author: string;
+  /**
+   * chiave Ed25519 dell'autore secondo il server: serve per chi non e' piu' membro. Per i membri
+   * vale quella della Polis. Il server non puo' comunque fabbricare voci: non ha la chiave dell'Oikos.
+   */
+  authorPk: string;
   box: SealedBox;
   sig: string;
 }
@@ -348,6 +353,8 @@ export interface KeryxNotice {
   polisId: string;
   oikosId: string;
   tomosId: string;
+  /** lo Scholion in cui si e' chiamati (si apre con la notifica) */
+  scholionId?: string;
   /** chi l'ha mandata (deve firmarla) */
   from: string;
   /** il testo dello Scholion, accorciato */

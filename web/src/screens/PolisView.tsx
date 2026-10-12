@@ -1,5 +1,5 @@
 // Una Polis: i suoi Oikos come carte, i membri come avatar. Tutto il resto in un pannello.
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ArrowLeft, Plus, Users } from 'lucide-react';
 import { can } from '@athenai/protocol';
 import { t, useLang } from '../i18n';
@@ -17,16 +17,10 @@ const initials = (name: string) =>
 
 export function PolisView() {
   useLang();
-  const { current, go, newOikos, reload } = usePolis();
-  useEffect(() => {
-    const onFocus = () => void reload();
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, [reload]);
+  const { current, go, newOikos } = usePolis();
   const [members, setMembers] = useState(false);
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
-  const [soon, setSoon] = useState(false);
   if (!current) return null;
   return (
     <div className="akropolis">
@@ -40,10 +34,7 @@ export function PolisView() {
         <div className="polis__head">
           <button
             className="avatars"
-            onClick={async () => {
-              await reload();
-              setMembers(true);
-            }}
+            onClick={() => setMembers(true)}
             title={t('polis.members')}
           >
             {current.members.slice(0, 5).map((m) => (
@@ -58,9 +49,9 @@ export function PolisView() {
         </div>
         <section className="cards" aria-label="Oikos">
           {current.oikos.map((o) => (
-            <button key={o.id} className="card card--oikos" onClick={() => setSoon(true)}>
+            <button key={o.id} className="card card--oikos" onClick={() => void go({ kind: 'oikos', id: current.id, oikosId: o.id })}>
               <strong className="card__title">{o.name}</strong>
-              <span className="card__meta">Agorà</span>
+              <span className="card__meta">Oikos</span>
             </button>
           ))}
           {can.write(current.role) &&
@@ -92,7 +83,6 @@ export function PolisView() {
             ))}
         </section>
         {current.oikos.length === 0 && <p className="hint">{t('oikos.empty')}</p>}
-        {soon && <p className="hint">{t('oikos.soon')}</p>}
       </main>
       {members && <MembersDialog onClose={() => setMembers(false)} />}
     </div>

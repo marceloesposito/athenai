@@ -14,7 +14,7 @@ servizi europei** (nessun fornitore americano), **open source** (AGPL-3.0) e **n
 - **Nulla nel tuo browser** se non lo scegli: tutto sta sul server, cifrato.
 - **Tuoi per sempre**: esporti tutto in formati aperti, quando vuoi; puoi ospitarlo da te.
 
-Stato: **fase P2** (server, Polis e Oikos cifrati, inviti, ruoli, rotazione delle chiavi). Piano: [docs/PIANO.md](docs/PIANO.md).
+Stato: **fase P3** (si scrive insieme in tempo reale nei Tomoi, cifrati; Scholia con @menzioni, notifiche, ricerca locale). Piano: [docs/PIANO.md](docs/PIANO.md).
 
 ## Provare in locale
 

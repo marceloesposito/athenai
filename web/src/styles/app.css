@@ -805,3 +805,387 @@ h2 {
   background: color-mix(in srgb, var(--aegean) 8%, var(--paper));
   text-align: left;
 }
+
+/* ---------------------------------------------------------------- P3: Oikos, Heuresis, Keryx */
+.topbar__crumb {
+  color: var(--muted);
+}
+
+.hint--soft {
+  margin-top: 24px;
+  opacity: 0.8;
+}
+
+.card--tomos {
+  border-left: 3px solid var(--aegean);
+}
+
+.card--add:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.heuresis {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(900px, 100%);
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--muted);
+}
+
+.heuresis:focus-within {
+  border-color: var(--focus);
+}
+
+.heuresis__input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+}
+
+.hits {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(900px, 100%);
+  margin-top: 16px;
+}
+
+.hit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hit:hover {
+  border-color: var(--terracotta);
+}
+
+.keryx {
+  position: relative;
+}
+
+.keryx__bell {
+  position: relative;
+}
+
+.keryx__count,
+.icon-btn__count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--terracotta);
+  color: var(--accent-ink);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+}
+
+.keryx__menu {
+  width: 320px;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.keryx__item {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.keryx__excerpt {
+  color: var(--ink-2);
+  font-size: var(--fs-ui-small);
+}
+
+.menu__item.is-on {
+  background: var(--chrome);
+}
+
+.menu__item--danger {
+  color: var(--bad);
+}
+
+.icon-btn {
+  position: relative;
+}
+
+.icon-btn.is-on {
+  background: var(--chrome);
+}
+
+/* ---------------------------------------------------------------- Grapheion */
+.grapheion {
+  height: 100%;
+  min-height: 0;
+}
+
+.grapheion__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.sheet {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  /* il foglio resta largo al massimo 760px, centrato nello spazio libero */
+  padding: 32px max(24px, calc((100% - 760px) / 2)) 96px;
+  overflow: auto;
+}
+
+.sheet--loading {
+  text-align: center;
+}
+
+.sheet__title {
+  width: 100%;
+  margin-bottom: 12px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 38px;
+  line-height: 1.15;
+}
+
+.sheet__title::placeholder {
+  color: var(--muted);
+}
+
+.sheet__text {
+  min-height: 50vh;
+  outline: 0;
+  color: var(--ink);
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.sheet__text p {
+  margin: 0 0 0.8em;
+}
+
+.sheet__text h1,
+.sheet__text h2,
+.sheet__text h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+.sheet__text blockquote {
+  margin: 0 0 0.8em;
+  padding-left: 14px;
+  border-left: 3px solid var(--line);
+  color: var(--ink-2);
+}
+
+.sheet__text code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--chrome);
+}
+
+.sheet__text p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.sheet__foot {
+  margin-top: 32px;
+  text-align: right;
+}
+
+.scholion-mark {
+  border-bottom: 2px solid var(--ochre);
+  background: var(--scholion);
+  cursor: pointer;
+}
+
+.scholion-mark.is-active {
+  background: var(--scholion-active);
+}
+
+.scholion-bubble {
+  position: absolute;
+  z-index: 10;
+  transform: translateX(-50%);
+  box-shadow: var(--shadow);
+}
+
+/* cursori degli altri (Symposion) */
+.collaboration-carets__caret {
+  position: relative;
+  margin: 0 -1px;
+  border-left: 1px solid;
+  border-right: 1px solid;
+  word-break: normal;
+  pointer-events: none;
+}
+
+.collaboration-carets__label {
+  position: absolute;
+  top: -1.4em;
+  left: -1px;
+  padding: 1px 6px;
+  border-radius: 4px 4px 4px 0;
+  color: var(--accent-ink);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: normal;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.sync-status {
+  color: var(--muted);
+  font-size: var(--fs-ui-small);
+}
+
+.sync-status.is-bad {
+  color: var(--bad);
+}
+
+.avatars--static {
+  cursor: default;
+}
+
+.avatar--presence {
+  color: var(--accent-ink);
+}
+
+/* ---------------------------------------------------------------- Scholia */
+.scholia {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 340px;
+  padding: 16px;
+  border-left: 1px solid var(--line);
+  background: var(--chrome);
+  overflow: auto;
+}
+
+.scholia__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.scholia__head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 22px;
+}
+
+.scholion {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  cursor: pointer;
+}
+
+.scholion.is-active {
+  border-color: var(--ochre);
+}
+
+.scholion.is-resolved {
+  opacity: 0.7;
+}
+
+.scholion--draft {
+  cursor: default;
+}
+
+.scholion__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.scholion__quote {
+  margin: 0;
+  padding-left: 8px;
+  border-left: 3px solid var(--ochre);
+  color: var(--ink-2);
+  font-style: italic;
+  font-size: var(--fs-ui-small);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.scholion__body {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.scholion__reply {
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+}
+
+.mention {
+  position: relative;
+}
+
+.mention__input {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+}
+
+.mention__menu {
+  top: auto;
+  bottom: calc(100% + 4px);
+  left: 0;
+  right: auto;
+  margin: 0;
+  list-style: none;
+}
+
+@media (max-width: 760px) {
+  .grapheion__body.with-panel {
+    flex-direction: column;
+  }
+  .scholia {
+    width: auto;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .sheet__title {
+    font-size: 30px;
+  }
+}

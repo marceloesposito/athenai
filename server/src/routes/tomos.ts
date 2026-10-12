@@ -32,11 +32,13 @@ export async function tomosAccess(sql: Sql, tomosId: string, accountId: string):
   return r ? { role: r.role, polisId: r.polis_id, oikosId: r.oikos_id, epoch: r.epoch } : null;
 }
 
-type Row = { seq: string; stream: LogEntry['stream']; kind: LogEntry['kind']; author: string; box: SealedBox; sig: string };
-const toEntry = (r: Row): LogEntry => ({ seq: Number(r.seq), stream: r.stream, kind: r.kind, author: r.author, box: r.box, sig: r.sig });
+type Row = { seq: string; stream: LogEntry['stream']; kind: LogEntry['kind']; author: string; author_pk: string | null; box: SealedBox; sig: string };
+const toEntry = (r: Row): LogEntry => ({ seq: Number(r.seq), stream: r.stream, kind: r.kind, author: r.author, authorPk: r.author_pk ?? '', box: r.box, sig: r.sig });
 
 export async function readLog(sql: Sql, tomosId: string): Promise<LogEntry[]> {
-  const rows = await sql<Row[]>`select seq, stream, kind, author, box, sig from tomos_log where tomos_id = ${tomosId} order by seq`;
+  const rows = await sql<Row[]>`
+    select l.seq, l.stream, l.kind, l.author, a.sign_pk as author_pk, l.box, l.sig
+    from tomos_log l left join accounts a on a.id = l.author where l.tomos_id = ${tomosId} order by l.seq`;
   return rows.map(toEntry);
 }
 
@@ -52,7 +54,7 @@ export async function pushEntry(sql: Sql, accountId: string, m: Extract<ClientMe
     const [r] = await tx<Row[]>`
       insert into tomos_log (tomos_id, stream, kind, author, box, sig)
       values (${m.tomosId}, ${m.stream}, ${m.kind}, ${accountId}, ${tx.json(m.box as never)}, ${m.sig})
-      returning seq, stream, kind, author, box, sig`;
+      returning seq, stream, kind, author, ${acc.sign_pk}::text as author_pk, box, sig`;
     // uno stato intero sostituisce le voci (dello stesso flusso) che il client aveva gia' unito
     if (m.kind === 'snapshot') await tx`delete from tomos_log where tomos_id = ${m.tomosId} and stream = ${m.stream} and seq <= ${m.covers!} and seq <> ${r.seq}`;
     await tx`update tomos set updated_at = now() where id = ${m.tomosId}`;

@@ -363,6 +363,7 @@ describe('tempo reale', () => {
     expect((await la.next('ack')).ref).toBe(1);
     const got = await lx.next('entry');
     expect(got.entry.author).toBe(a.accountId);
+    expect(got.entry.authorPk).toBe(b64(a.sign.publicKey));
     expect(s.to_string(open(oikos.key, got.entry.box, AD.tomosLog(t.id, 'text', 'update', a.accountId)))).toBe(SECRET_TEXT);
     // il Mentore non scrive nel testo, ma negli Scholia si'
     lm.send({ t: 'push', ref: 2, tomosId: t.id, stream: 'text', kind: 'update', ...entry(m, oikos.key, t.id, 'text', 'update', 'x') });

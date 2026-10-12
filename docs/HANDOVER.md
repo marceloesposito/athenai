@@ -1,4 +1,4 @@
-# Handover — stato al 12 ottobre 2026 (sera)
+# Handover — stato al 12 ottobre 2026 (notte, dopo la P3)
 
 Documento per riprendere il lavoro in una sessione nuova, dopo il clear della chat. Leggere prima
 questo, poi `CLAUDE.md`, `docs/PIANO.md` e `docs/MODELLO-MINACCE.md` di questo repo.
@@ -9,7 +9,7 @@ questo, poi `CLAUDE.md`, `docs/PIANO.md` e `docs/MODELLO-MINACCE.md` di questo r
 |---|---|---|
 | **Alexandria** — app desktop offline (Tauri + Rust + React) | `~/Documents/GitHub/alexandria`, GitHub `marceloesposito/alexandria` | `main` = `9d410db`; **PR #34 aperta** (dentro l'app solo Codeberg come server git: tolti GitHub/GitLab/Device Flow, `remote_allowed` in `git.rs`). App per Mac in `/Applications` (build del 12/10, prima della #34). |
 | **logos** — nucleo puro condiviso (MIT) | `~/Documents/GitHub/logos`, GitHub `marceloesposito/logos` | tag `v0.1.0` (45 moduli, 209 test). Alexandria lo usa come `logos@github:marceloesposito/logos#v0.1.0`. |
-| **Athenai** — app collaborativa nel browser (AGPL) | `~/Documents/GitHub/athenai`, GitHub `marceloesposito/athenai` | P0–P2 fatte, su GitHub (ramo `p2-server` → PR verso `main`). |
+| **Athenai** — app collaborativa nel browser (AGPL) | `~/Documents/GitHub/athenai`, GitHub `marceloesposito/athenai` | P0–P3 fatte. P2 su `main` (PR #1); P3 sul ramo `p3-grapheion` (PR verso `main`). |
 
 ## Decisioni del committente che prevalgono su tutto
 1. **Nessun fornitore americano** (12/10): niente accesso con Google, GitHub o Apple; niente Google Drive
@@ -39,7 +39,7 @@ Symposion (sessione dal vivo), Keryx, Chronika, Heuresis, Anamnesis (versioni), 
 Symbolon (chiavi, 12 parole), Nomoi (preferenze). Ruoli: Archon, Polites, Mentore, Xenos.
 I nomi non si traducono mai (test in `web/src/i18n/`).
 
-## Cosa fa Athenai oggi (P0–P2)
+## Cosa fa Athenai oggi (P0–P3)
 - **Propylaia**: accesso con Zitadel (OIDC + PKCE) oppure modalità di prova (`ALLOW_TRIAL=true` sul
   server: account che dura quanto la scheda).
 - **Symbolon**: 12 parole BIP39 (it/en) → chiave principale → X25519 + Ed25519; sblocco con passkey
@@ -51,12 +51,39 @@ I nomi non si traducono mai (test in `web/src/i18n/`).
   (firma di una sfida → sessione 12 h), Polis, membri e ruoli, inviti con la chiave nel frammento del
   link, Oikos, **rotazione delle chiavi** con catena all'indietro (la fa da sé il primo Archon che
   apre la Polis dopo un'uscita), passkey e preferenze cifrate, relay.
-- **Web**: Akropolis (Polis come carte), Polis (Oikos come carte, membri, inviti per ruolo).
-  Aprire un Oikos dice "L'Agorà arriva con la P4".
+- **Web**: Akropolis (Polis come carte), Polis (Oikos come carte, membri, inviti per ruolo), Oikos
+  (Tomoi come carte, "Nuovo Tomos", Heuresis), Grapheion.
+- **P3 — scrivere insieme**:
+  - **Tomos**: titolo cifrato con la chiave dell'Oikos; registro Yjs cifrato e **firmato** dall'autore
+    sul server (`tomos_log`), due flussi: `text` (Archon, Polites) e `scholia` (anche Mentore). Ogni
+    50 voci, in un momento di quiete, chi scrive manda uno stato intero che sostituisce le voci
+    coperte. `web/src/grapheion/sync.ts` (modello secsync, senza la libreria).
+  - **Tempo reale**: WebSocket `/v1/live` (autenticazione con il primo messaggio, mai nell'URL):
+    voci, presenza cifrata (cursori con nome e colore, Symposion), avvisi `polis` (la vista si
+    ricarica da sola: niente più ricaricamento manuale) e `keryx`. Riconnessione automatica.
+  - **Scholia**: su una selezione compare "Commenta"; discussioni con risposte, risolte, @menzioni con
+    menu dei membri; l'ancora è una coppia di posizioni relative Yjs.
+  - **Keryx**: campanella in alto, visibile solo con notifiche; sealed box firmata verso il
+    destinatario; aprirla porta allo Scholion e la cancella dal server.
+  - **Heuresis**: ricerca nell'Oikos, titoli (fuzzy di `logos`) e testi decifrati in memoria.
+  - `logos` è dipendenza del web (`lib/fuzzy`, `doc/counts`); il Grapheion (TipTap) si carica a
+    richiesta.
 
-Verificato: 32 test (5 protocol, 15 web, 12 server su Postgres vero); `scripts/e2e-polis.mjs` (tre
-"dispositivi" in Chrome headless: invito, ingresso, allontanamento con rotazione, collegamento) passa
-sia in sviluppo sia con lo stack in Docker; nessun dato in `localStorage`.
+Verificato (12/10, su Windows): 51 test (9 protocol, 24 web, 18 server su Postgres vero, anche
+WebSocket); `scripts/e2e-polis.mjs` e `scripts/e2e-tomos.mjs` passano (tre "dispositivi" in Chrome
+headless: scrittura a due in tempo reale ~220 ms, presenza, Scholion con @menzione → Keryx → si apre
+lo Scholion, Mentore che commenta ma non scrive, Heuresis, allontanamento con rotazione e scrittura
+con la chiave nuova; nessun testo in chiaro nel database, niente in `localStorage`).
+
+## Ambiente sul PC Windows (12/10)
+- Niente Docker: per i test si usa un **Postgres 17 portabile** (binari EDB in una cartella
+  temporanea, `initdb -U athenai --auth=trust`, `pg_ctl -o "-p 55432" start`, `create database
+  athenai`). Il server: `DATABASE_URL=postgres://athenai:athenai-dev@127.0.0.1:55432/athenai
+  PORT=8787 ALLOW_TRIAL=true STATIC_DIR=../web/dist node src/main.ts` (da `server/`).
+- E2E: `PSQL="<psql> -p 55432 -U athenai -d athenai" node scripts/e2e-tomos.mjs` (Chrome in
+  `C:/Program Files/Google/Chrome`, lingua forzata a en-US in `cdp.mjs`).
+- **Da provare sul Mac**: `docker compose -f deploy/compose.yml up -d --build` con la P3 (il
+  Dockerfile ora installa `git`, che serve per `logos` da GitHub).
 
 ## Ambiente su questo Mac
 - **Docker = Colima** (open source) + `docker`/`docker-compose` da Homebrew. Se Docker non risponde:
@@ -74,10 +101,10 @@ sia in sviluppo sia con lo stack in Docker; nessun dato in `localStorage`.
   sviluppo; può servire per provare la funzione Codeberg dell'app (account `marceloesposito`).
 
 ## Prossimi passi, in ordine
-1. **P3**: Grapheion collaborativo cifrato (TipTap + Yjs con protocollo secsync sul relay del server),
-   cursori e presenza (Symposion), Scholia con @menzioni, Keryx, Heuresis locale; `logos` torna nel
-   web come dipendenza (da GitHub, come in Alexandria). Con il tempo reale togliere il ricaricamento manuale della Polis.
-2. **P4**: Agorà stile Miro (vedi decisione 6). Poi P5–P8 come in `docs/PIANO.md`.
+1. Merge della PR della P3 (approva il committente) e prova dello stack in Docker sul Mac.
+2. **P4**: Agorà stile Miro (vedi decisione 6): il canvas sarà un altro documento Yjs dello stesso
+   registro cifrato (un terzo flusso, o un Tomos speciale per Oikos) — `sync.ts` è già generico sui
+   flussi. Poi P5–P8 come in `docs/PIANO.md`.
 
 ## Limiti e cose da sapere
 - **Zitadel mai provato** davvero (solo modalità di prova); guida in `deploy/README.md` sul compose
@@ -86,6 +113,14 @@ sia in sviluppo sia con lo stack in Docker; nessun dato in `localStorage`.
   in Safari/Chrome.
 - Niente lettore del QR nel collegamento: si copia e incolla il codice (il QR si mostra).
 - Elenco delle Polis: una richiesta per Polis per decifrare il nome (da ottimizzare).
+- P3: niente orologi per autore firmati (secsync li ha): un server malevolo potrebbe nascondere
+  una modifica a qualcuno senza che se ne accorga (vedi modello delle minacce).
+- P3: il controllo "il Mentore non scrive nel testo" lo fa il server; i client accettano ogni voce
+  firmata da un membro.
+- P3: nessuna formattazione oltre a StarterKit (titoli, elenchi, citazioni, codice) e nessuna barra
+  degli strumenti: si usano le scorciatoie Markdown di TipTap. Niente export (arriva con Ekdosis).
+- `npm audit` segnala vulnerabilità in dipendenze transitive di `logos` (mathjax, katex); il web
+  importa solo `lib/fuzzy` e `doc/counts`, che non le usano, quindi non finiscono nel bundle.
 - Restano non europei: il registro npm e il portachiavi con cui l'utente sincronizza la passkey
   (segnalati nel modello delle minacce).
 - Un account di prova si perde chiudendo la scheda (voluto: nulla in locale).

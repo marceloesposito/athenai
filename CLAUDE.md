@@ -36,11 +36,20 @@ Prima di ogni commit: `npm test` e `npm run build` verdi. Su questo Mac Docker �
   dispositivo (deviceKey), passkey PRF (passkey), collegamento (deviceLink, relay), archivio locale.
 - `web/src/auth/` — OIDC verso Zitadel (oidc) o prova locale (trial).
 - `web/src/state/` — sessione (fasi: signedOut, needsSymbolon, protect, locked, ready) e preferenze.
-- `web/src/screens/` — Propylaia, Symbolon, sblocco, collegamento, Akropolis, Nomoi.
+- `web/src/screens/` — Propylaia, Symbolon, sblocco, collegamento, Akropolis, Polis, Oikos
+  (Tomoi + Heuresis), Grapheion (TipTap, caricato a richiesta), Scholia, Keryx, Nomoi.
+- `web/src/grapheion/` — sincronizzazione cifrata di un Tomos (`sync.ts`, trasporto astratto,
+  provato con un server finto), Scholia nel documento Yjs, ancore, Heuresis.
+- `web/src/live/socket.ts` — WebSocket `/v1/live`: registro dei Tomos, presenza, avvisi
+  (Polis cambiata → la vista si ricarica da sola; Keryx).
 - `protocol/` — tipi delle API, testi firmati, buste cifrate, link d'invito, ruoli (condiviso).
 - `server/` — Fastify + Postgres, TypeScript nativo di Node 24 (`node src/main.ts`, solo sintassi
-  cancellabile): account con firma della chiave, sessioni, Polis, inviti, Oikos, rotazione, relay.
-  Test d'integrazione in `server/test/`.
+  cancellabile): account con firma della chiave, sessioni, Polis, inviti, Oikos, rotazione, relay,
+  Tomos con registro cifrato e firmato (`routes/tomos.ts`), Keryx, tempo reale (`live.ts`).
+  Test d'integrazione in `server/test/` (anche WebSocket, con `injectWS`).
+- `scripts/` — prove end-to-end in Chrome headless: `e2e-polis.mjs` (P2), `e2e-tomos.mjs` (P3).
+  Con il server avviato su :8787; `PSQL` per il comando psql. Dopo una nuova build dell'app il
+  server va riavviato (`@fastify/static` registra i file all'avvio).
 - `web/src/api/` — client delle API; `web/src/state/polis.ts` — Polis e Oikos decifrati.
 - `deploy/` — compose (Postgres + server con l'app), Dockerfile, guida a Zitadel.
 
