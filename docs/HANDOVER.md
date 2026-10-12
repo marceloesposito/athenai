@@ -9,15 +9,16 @@ questo, poi `CLAUDE.md`, `docs/PIANO.md` e `docs/MODELLO-MINACCE.md` di questo r
 |---|---|---|
 | **Alexandria** — app desktop offline (Tauri + Rust + React) | `~/Documents/GitHub/alexandria`, GitHub `marceloesposito/alexandria` | `main` = `9d410db`, pulito; tutte le PR unite (fino a #33). App per Mac installata in `/Applications` (build del 12/10). |
 | **logos** — nucleo puro condiviso (MIT) | `~/Documents/GitHub/logos`, GitHub `marceloesposito/logos` | tag `v0.1.0` (45 moduli, 209 test). Alexandria lo usa come `logos@github:marceloesposito/logos#v0.1.0`. |
-| **Athenai** — app collaborativa nel browser (AGPL) | `~/Documents/GitHub/athenai`, GitHub `marceloesposito/athenai` | su GitHub c'è solo la P1 (`main`). **La P2 è finita ma solo in locale**: ramo `p2-server`, commit `a571557` + questo handover, **non pubblicato** (si aspetta Codeberg). |
+| **Athenai** — app collaborativa nel browser (AGPL) | `~/Documents/GitHub/athenai`, GitHub `marceloesposito/athenai` | P0–P2 fatte, su GitHub (ramo `p2-server` → PR verso `main`). |
 
 ## Decisioni del committente che prevalgono su tutto
 1. **Nessun fornitore americano** (12/10): niente accesso con Google, GitHub o Apple; niente Google Drive
    o iCloud; codice e versioning **non su GitHub**. Solo servizi europei e attenti alla privacy.
    - Accesso: **solo passkey ed email** con Zitadel auto-ospitato (CH).
    - Backup (Archeion): Nextcloud/WebDAV, Infomaniak kDrive, Hetzner Storage Box, pCloud — sempre cifrati.
-   - Versioning di un Oikos: repo git **cifrato** su Codeberg o Forgejo auto-ospitato.
-   - Codice dei tre progetti: **trasloco su Codeberg** deciso (vedi "Prossimi passi").
+   - Versioning di un Oikos, **dentro l'app**: repo git **cifrato** e **solo su Codeberg**.
+   - **Sviluppo**: i tre progetti restano su **GitHub** (repo, PR, CI con `gh`). È una scelta del
+     committente per lo sviluppo; l'app non usa mai GitHub.
 2. **Nulla nel browser di default**: identità pubblica, chiave principale avvolta dalla passkey,
    preferenze e contenuti stanno sul server, cifrati. In locale solo con "Ricorda su questo browser".
 3. **Cifratura end-to-end di default**; il server non legge mai contenuti né nomi.
@@ -66,28 +67,15 @@ sia in sviluppo sia con lo stack in Docker; nessun dato in `localStorage`.
 - Alexandria per Mac: `export PATH="$HOME/.cargo/bin:$PATH" SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk`
   prima di `npx tauri build` (l'SDK 27 ha un linker incompatibile); poi copiare
   `src-tauri/target/release/bundle/macos/Alexandria.app` in `/Applications` se l'app è chiusa.
-- `gh` ha lo scope `workflow`. **Chiave SSH per Codeberg**: `~/.ssh/codeberg_ed25519` (+ blocco
-  `Host codeberg.org` in `~/.ssh/config`); pubblica:
-  `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG/7h95F60DJ5JKs7obGNbs9vmABFWRTcg6xU8smJRTz marceloesposito-mac-codeberg`
+- `gh` ha lo scope `workflow`. Esiste una chiave SSH `~/.ssh/codeberg_ed25519` (+ `Host codeberg.org`
+  in `~/.ssh/config`), generata quando sembrava che il codice andasse su Codeberg: non serve per lo
+  sviluppo; può servire per provare la funzione Codeberg dell'app (account `marceloesposito`).
 
 ## Prossimi passi, in ordine
-1. **Trasloco su Codeberg** (utente `marceloesposito`, account creato il 12/10). In sospeso lato
-   committente: **aggiungere la chiave SSH** sopra in Impostazioni → Chiavi SSH/GPG, confermare
-   l'email, creare i repo vuoti `athenai`, `logos`, `alexandria`. Verifica: `ssh -T git@codeberg.org`.
-   Poi:
-   - aggiungere il remoto `codeberg` e spingere tutta la storia e i tag dei tre progetti (per Athenai
-     anche il ramo `p2-server`, poi PR/merge su Codeberg con l'approvazione del committente);
-   - CI europea: `.forgejo/workflows/` (Forgejo Actions di Codeberg) o Woodpecker; verificare runner ed
-     etichette disponibili su Codeberg prima di scriverle; Postgres come servizio per i test del server;
-   - dipendenza `logos` di Alexandria → `git+https://codeberg.org/marceloesposito/logos.git#v0.1.0`;
-   - link al sorgente nell'app: già `https://codeberg.org/marceloesposito/athenai` (Propylaia);
-   - GitHub: specchio in sola lettura o archivio, **solo con la conferma del committente**;
-   - nei `CLAUDE.md` di Alexandria e Athenai sostituire il flusso `gh`/GitHub con quello Codeberg
-     (CLI `tea`, da installare con Homebrew, oppure API Forgejo).
-2. **P3**: Grapheion collaborativo cifrato (TipTap + Yjs con protocollo secsync sul relay del server),
+1. **P3**: Grapheion collaborativo cifrato (TipTap + Yjs con protocollo secsync sul relay del server),
    cursori e presenza (Symposion), Scholia con @menzioni, Keryx, Heuresis locale; `logos` torna nel
-   web come dipendenza (da Codeberg). Con il tempo reale togliere il ricaricamento manuale della Polis.
-3. **P4**: Agorà stile Miro (vedi decisione 6). Poi P5–P8 come in `docs/PIANO.md`.
+   web come dipendenza (da GitHub, come in Alexandria). Con il tempo reale togliere il ricaricamento manuale della Polis.
+2. **P4**: Agorà stile Miro (vedi decisione 6). Poi P5–P8 come in `docs/PIANO.md`.
 
 ## Limiti e cose da sapere
 - **Zitadel mai provato** davvero (solo modalità di prova); guida in `deploy/README.md` sul compose

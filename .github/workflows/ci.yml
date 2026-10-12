@@ -1,4 +1,4 @@
-# CI provvisoria: il codice si sposta su Codeberg (Forgejo Actions) appena c'e' l'account.
+# CI: protocollo, web e server (con Postgres). Lo sviluppo resta su GitHub; l'app non lo usa.
 name: CI
 
 on:

@@ -31,8 +31,8 @@ Nome: Ἀθῆναι, Atene, la prima grande democrazia. Glossario: [GLOSSARIO.m
 | Errori | GlitchTip auto-ospitato | — |
 | Statistiche | nessuna | — |
 | Dominio e DNS | Infomaniak o Gandi | CH / FR |
-| Codice sorgente e CI | **Codeberg** (Forgejo; no-profit) | DE |
-| Versioning di un Oikos | repo git **cifrato** su Codeberg o su un Forgejo auto-ospitato | DE / proprio |
+| Codice sorgente e CI (sviluppo) | GitHub — scelta del committente per lo sviluppo; **mai usato dall'app** | — |
+| Versioning di un Oikos (dentro l'app) | repo git **cifrato** solo su **Codeberg** (Forgejo; no-profit) | DE |
 | Backup (Archeion) | Nextcloud/WebDAV, Infomaniak kDrive, Hetzner Storage Box, pCloud — sempre cifrati | DE / CH |
 
 **Restano pezzi non europei, da tenere d'occhio:** il registro npm (le dipendenze si installano da
@@ -74,12 +74,11 @@ Markdown da `logos`).
 | Fase | Contenuto | Stato |
 |---|---|---|
 | P0 | Nucleo `logos` estratto da Alexandria | fatto (logos v0.1.0, Alexandria #32 #33) |
-| — | Trasloco del codice (athenai, logos, Alexandria) su Codeberg con CI europea | da fare (serve l'account Codeberg) |
 | P1 | Repo, identità e glossario, Propylaia (Zitadel OIDC o prova), Symbolon (12 parole, passkey PRF, chiave del dispositivo), collegamento dei dispositivi, Akropolis, Nomoi, modello delle minacce | fatto |
 | P2 | Polis e Oikos cifrati: server (relay + API minime, Postgres), inviti e ruoli, consegna e rotazione delle chiavi, collegamento fra dispositivi diversi, nulla in locale di default, `docker compose` | fatto |
 | P3 | Grapheion collaborativo cifrato (secsync), cursori, Scholia con @menzioni, Keryx, Heuresis locale | |
 | P4 | **Agorà**: canvas, carte, **post-it stile Miro**, connettori, Topoi e kanban, presenza | |
 | P5 | Thesauros (fonti CSL, DOI/ISBN, file cifrati), Anthologia | |
 | P6 | Anamnesis (versioni), Dokimasia (ruolo Mentore, Suggerisci), Chronika | |
-| P7 | Archeion: backup cifrati automatici (WebDAV/Nextcloud, kDrive, Storage Box, pCloud) e ripristino; versioning su repo git cifrato (Codeberg/Forgejo) | |
+| P7 | Archeion: backup cifrati automatici (WebDAV/Nextcloud, kDrive, Storage Box, pCloud) e ripristino; versioning su repo git cifrato (solo Codeberg) | |
 | P8 | Lancio no-profit: costi pubblici, Open Collective Europe, Liberapay, NLnet, guida all'auto-ospitalità, audit | |

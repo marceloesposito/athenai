@@ -35,7 +35,8 @@ di Polis, Oikos e persone (cifrati), né email (le ha solo Zitadel).
 
 ## Nessun fornitore americano
 Per scelta del committente (12 ottobre 2026) nessun servizio americano: niente accesso con
-Google, GitHub o Apple, niente Drive o iCloud, codice su Codeberg. Restano da sorvegliare il
+Google, GitHub o Apple, niente Drive o iCloud; dentro l'app l'unico servizio git è Codeberg (il
+codice di Athenai si sviluppa su GitHub, ma l'app non lo usa mai). Restano da sorvegliare il
 registro npm (dipendenze, verificate dal lockfile) e il portachiavi con cui l'utente sincronizza
 la propria passkey.
 

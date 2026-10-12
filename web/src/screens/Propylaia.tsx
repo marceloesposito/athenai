@@ -5,7 +5,7 @@ import { auth } from '../auth';
 import { useSession } from '../state/session';
 import { Kylix, Meander } from '../brand/Kylix';
 
-const SOURCE = 'https://codeberg.org/marceloesposito/athenai';
+const SOURCE = 'https://github.com/marceloesposito/athenai';
 
 export function Propylaia() {
   useLang();

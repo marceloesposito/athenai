@@ -10,7 +10,8 @@ no-profit. **Riprendendo il lavoro leggere prima `docs/HANDOVER.md`.** Piano e f
 - **Chiavi**: la chiave principale (dal Symbolon, 12 parole) non si salva mai in chiaro: solo
   avvolta (passkey PRF o chiave WebCrypto non esportabile). In memoria solo mentre è sbloccata.
 - **Solo servizi europei** (decisione del committente): nessun fornitore americano — niente login
-  Google/GitHub/Apple, niente Drive/iCloud, codice su Codeberg. Prima di aggiungere un servizio o una
+  Google/GitHub/Apple, niente Drive/iCloud; dentro l'app l'unico servizio git è **Codeberg**. Lo
+  *sviluppo* invece resta su GitHub (repo, PR, CI). Prima di aggiungere un servizio o una
   dipendenza esterna verificare origine e privacy. Mai CDN o script di terzi (CSP in `web/index.html`).
 - **Nulla nel browser di default**: tutto sul server, cifrato; in locale solo su scelta esplicita.
 - **Interfaccia minimale**: un'azione principale per schermata, il resto nel menu del profilo o
