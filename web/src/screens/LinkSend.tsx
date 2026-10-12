@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { t, useLang } from '../i18n';
 import { parseLinkCode, sealMasterFor, verificationCode } from '../crypto/deviceLink';
-import { localRelay } from '../crypto/relay';
+import { serverRelay } from '../crypto/relay';
 import { useSession } from '../state/session';
 import { Modal } from '../components/Modal';
 
@@ -29,7 +29,7 @@ export function LinkSend({ onClose }: { onClose: () => void }) {
               className="btn btn--primary"
               onClick={async () => {
                 if (!identity) return;
-                await localRelay().send(target.channel, await sealMasterFor(identity.master, target.publicKey));
+                await serverRelay().send(target.channel, await sealMasterFor(identity.master, target.publicKey));
                 setState('done');
               }}
             >

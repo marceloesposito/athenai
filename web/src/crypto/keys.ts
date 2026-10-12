@@ -6,7 +6,7 @@
 import { sodium, toB64, fromB64, type Sodium } from './sodium';
 
 const KDF_CONTEXT = 'athenai_'; // 8 byte, richiesti da crypto_kdf
-const SUBKEY = { box: 1, sign: 2 } as const;
+const SUBKEY = { box: 1, sign: 2, prefs: 3 } as const;
 
 export interface PublicIdentity {
   /** X25519, base64url */
@@ -36,6 +36,12 @@ export async function identityFromMaster(master: Uint8Array): Promise<Identity> 
   const box = s.crypto_box_seed_keypair(boxSeed);
   const sign = s.crypto_sign_seed_keypair(signSeed);
   return { master, box: { publicKey: box.publicKey, privateKey: box.privateKey }, sign: { publicKey: sign.publicKey, privateKey: sign.privateKey } };
+}
+
+/** Chiave delle preferenze dell'utente (cifrate sul server). */
+export async function prefsKey(master: Uint8Array): Promise<Uint8Array> {
+  const s = await sodium();
+  return s.crypto_kdf_derive_from_key(32, SUBKEY.prefs, KDF_CONTEXT, master);
 }
 
 export async function publicIdentity(id: Identity): Promise<PublicIdentity> {

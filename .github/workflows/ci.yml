@@ -1,3 +1,4 @@
+# CI provvisoria: il codice si sposta su Codeberg (Forgejo Actions) appena c'e' l'account.
 name: CI
 
 on:
@@ -9,13 +10,22 @@ permissions:
   contents: read
 
 jobs:
-  web:
+  test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: athenai
+          POSTGRES_USER: athenai
+          POSTGRES_PASSWORD: athenai-dev
+        ports: ["55432:5432"]
+        options: --health-cmd "pg_isready -U athenai" --health-interval 5s --health-retries 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: npm test

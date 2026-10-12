@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { t, useLang } from '../i18n';
 import { createLinkRequest, openLinkedMaster, verificationCode, type LinkRequest } from '../crypto/deviceLink';
-import { localRelay } from '../crypto/relay';
+import { serverRelay } from '../crypto/relay';
 import { useSession } from '../state/session';
 import { Qr } from '../components/Qr';
 import { Kylix } from '../brand/Kylix';
@@ -23,10 +23,11 @@ export function LinkReceive({ onUsePhrase }: { onUsePhrase: () => void }) {
       setReq(r);
       setCode(await verificationCode(r.publicKey));
       try {
-        const sealed = await localRelay().receive(r.channel, ctl.signal);
+        const sealed = await serverRelay().receive(r.channel, ctl.signal);
         const master = await openLinkedMaster(sealed, r);
         if (!master) return setErr(t('link.failed'));
-        if ((await adoptMaster(master)) === 'other') setErr(t('link.mismatch'));
+        const res = await adoptMaster(master);
+        if (res !== 'ok') setErr(t(res === 'offline' ? 'offline.text' : 'link.mismatch'));
       } catch {
         /* annullato */
       }

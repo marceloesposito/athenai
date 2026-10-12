@@ -2,13 +2,14 @@
 import { useState } from 'react';
 import { Fingerprint as FpIcon, Monitor, KeySquare } from 'lucide-react';
 import { t, useLang } from '../i18n';
-import { useSession, type Protection } from '../state/session';
+import { useSession, usePublicIdentity, type Protection } from '../state/session';
 import { passkeysAvailable } from '../crypto/passkey';
 import { Fingerprint } from '../components/Fingerprint';
 
 export function ProtectStep({ onDone }: { onDone?: () => void }) {
   useLang();
-  const { protect, record } = useSession();
+  const { protect } = useSession();
+  const pub = usePublicIdentity();
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const choose = async (k: Protection) => {
@@ -39,7 +40,7 @@ export function ProtectStep({ onDone }: { onDone?: () => void }) {
               <small>{t('symbolon.protect.deviceHint')}</small>
             </span>
           </button>
-          <button className="choice" disabled={busy} onClick={() => void choose('none')}>
+          <button className="choice" disabled={busy} onClick={() => void choose('phrase')}>
             <KeySquare size={20} />
             <span>
               <strong>{t('symbolon.protect.none')}</strong>
@@ -51,10 +52,10 @@ export function ProtectStep({ onDone }: { onDone?: () => void }) {
             {msg}
           </p>
         )}
-        {record && (
+        {pub && (
           <div className="fp-box">
             <span>{t('symbolon.fingerprint')}</span>
-            <Fingerprint identity={record.identity} />
+            <Fingerprint identity={pub} />
             <small className="hint">{t('symbolon.fingerprintHint')}</small>
           </div>
         )}

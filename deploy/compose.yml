@@ -1,0 +1,45 @@
+# Athenai in locale o su un server: Postgres + il server di Athenai (che serve anche l'app web).
+# Zitadel per l'accesso vero: vedi deploy/README.md. Senza Zitadel: ALLOW_TRIAL=true (solo prove).
+name: athenai
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: athenai
+      POSTGRES_USER: athenai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-athenai-dev}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-55432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U athenai -d athenai"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  athenai:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        VITE_OIDC_ISSUER: ${OIDC_ISSUER:-}
+        VITE_OIDC_CLIENT_ID: ${OIDC_AUDIENCE:-}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://athenai:${POSTGRES_PASSWORD:-athenai-dev}@postgres:5432/athenai
+      PORT: 8787
+      STATIC_DIR: /app/web/dist
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
+      ALLOW_TRIAL: ${ALLOW_TRIAL:-true}
+    ports:
+      - "127.0.0.1:${ATHENAI_PORT:-8787}:8787"
+
+volumes:
+  pgdata:

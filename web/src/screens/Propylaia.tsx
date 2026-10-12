@@ -1,11 +1,11 @@
 // Propylaia: l'ingresso monumentale. Passkey ed email per primi (Zitadel), Google e GitHub dopo.
-import { KeyRound, GitBranch, Lock, Globe2, HeartHandshake, Download } from 'lucide-react';
+import { KeyRound, Lock, Globe2, HeartHandshake, Download } from 'lucide-react';
 import { t, useLang } from '../i18n';
 import { auth } from '../auth';
 import { useSession } from '../state/session';
 import { Kylix, Meander } from '../brand/Kylix';
 
-const SOURCE = 'https://github.com/marceloesposito/athenai';
+const SOURCE = 'https://codeberg.org/marceloesposito/athenai';
 
 export function Propylaia() {
   useLang();
@@ -18,35 +18,12 @@ export function Propylaia() {
         <Meander width={180} />
         <p className="propylaia__tagline">{t('propylaia.tagline')}</p>
 
-        {auth.configured ? (
-          <div className="propylaia__actions">
-            <button className="btn btn--primary btn--large" onClick={() => void signIn()}>
-              <KeyRound size={16} /> {t('propylaia.enter')}
-            </button>
-            {auth.providers.length > 0 && <div className="propylaia__or">{t('propylaia.or')}</div>}
-            {auth.providers.includes('google') && (
-              <button className="btn btn--large" onClick={() => void signIn('google')}>
-                <span className="provider-g" aria-hidden>
-                  G
-                </span>{' '}
-                {t('propylaia.google')}
-              </button>
-            )}
-            {auth.providers.includes('github') && (
-              <button className="btn btn--large" onClick={() => void signIn('github')}>
-                <GitBranch size={16} /> {t('propylaia.github')}
-              </button>
-            )}
-            {auth.providers.length > 0 && <p className="hint">{t('propylaia.providerNote')}</p>}
-          </div>
-        ) : (
-          <div className="propylaia__actions">
-            <button className="btn btn--primary btn--large" onClick={() => void signIn()}>
-              <KeyRound size={16} /> {t('propylaia.dev')}
-            </button>
-            <p className="hint">{t('propylaia.devNote')}</p>
-          </div>
-        )}
+        <div className="propylaia__actions">
+          <button className="btn btn--primary btn--large" onClick={() => void signIn()}>
+            <KeyRound size={16} /> {t(auth.configured ? 'propylaia.enter' : 'propylaia.dev')}
+          </button>
+          {!auth.configured && <p className="hint">{t('propylaia.devNote')}</p>}
+        </div>
         {error && (
           <p className="error" role="alert">
             {t('auth.error', { error })}

@@ -7,12 +7,16 @@ import { SymbolonCreate } from './screens/SymbolonCreate';
 import { ProtectStep } from './screens/ProtectStep';
 import { Unlock } from './screens/Unlock';
 import { Akropolis } from './screens/Akropolis';
+import { PolisView } from './screens/PolisView';
+import { usePolis } from './state/polis';
 import { Kylix } from './brand/Kylix';
+import { Offline } from './screens/Offline';
 
 export default function App() {
   useLang();
   usePrefs();
   const { phase, init } = useSession();
+  const view = usePolis((s) => s.view.kind);
   useEffect(() => {
     void init();
   }, [init]);
@@ -23,6 +27,8 @@ export default function App() {
           <Kylix size={56} title={t('auth.returning')} />
         </main>
       );
+    case 'offline':
+      return <Offline />;
     case 'signedOut':
       return <Propylaia />;
     case 'needsSymbolon':
@@ -32,6 +38,6 @@ export default function App() {
     case 'locked':
       return <Unlock />;
     case 'ready':
-      return <Akropolis />;
+      return view === 'polis' ? <PolisView /> : <Akropolis />;
   }
 }

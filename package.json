@@ -3,10 +3,15 @@
   "private": true,
   "description": "Athenai: scrittura collaborativa nel browser, cifrata end-to-end, europea e no-profit.",
   "license": "AGPL-3.0-or-later",
-  "workspaces": ["web"],
+  "workspaces": [
+    "protocol",
+    "web",
+    "server"
+  ],
   "scripts": {
     "dev": "npm run dev -w web",
-    "test": "npm test -w web",
-    "build": "npm run build -w web"
+    "dev:server": "npm run dev -w server",
+    "test": "npm test -w protocol && npm test -w web && npm test -w server",
+    "build": "npm run build -w web && npm run check -w server"
   }
 }
