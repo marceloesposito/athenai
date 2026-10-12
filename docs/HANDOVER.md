@@ -7,7 +7,7 @@ questo, poi `CLAUDE.md`, `docs/PIANO.md` e `docs/MODELLO-MINACCE.md` di questo r
 
 | Progetto | Dove sta | Stato |
 |---|---|---|
-| **Alexandria** — app desktop offline (Tauri + Rust + React) | `~/Documents/GitHub/alexandria`, GitHub `marceloesposito/alexandria` | `main` = `9d410db`, pulito; tutte le PR unite (fino a #33). App per Mac installata in `/Applications` (build del 12/10). |
+| **Alexandria** — app desktop offline (Tauri + Rust + React) | `~/Documents/GitHub/alexandria`, GitHub `marceloesposito/alexandria` | `main` = `9d410db`; **PR #34 aperta** (dentro l'app solo Codeberg come server git: tolti GitHub/GitLab/Device Flow, `remote_allowed` in `git.rs`). App per Mac in `/Applications` (build del 12/10, prima della #34). |
 | **logos** — nucleo puro condiviso (MIT) | `~/Documents/GitHub/logos`, GitHub `marceloesposito/logos` | tag `v0.1.0` (45 moduli, 209 test). Alexandria lo usa come `logos@github:marceloesposito/logos#v0.1.0`. |
 | **Athenai** — app collaborativa nel browser (AGPL) | `~/Documents/GitHub/athenai`, GitHub `marceloesposito/athenai` | P0–P2 fatte, su GitHub (ramo `p2-server` → PR verso `main`). |
 
@@ -18,7 +18,9 @@ questo, poi `CLAUDE.md`, `docs/PIANO.md` e `docs/MODELLO-MINACCE.md` di questo r
    - Backup (Archeion): Nextcloud/WebDAV, Infomaniak kDrive, Hetzner Storage Box, pCloud — sempre cifrati.
    - Versioning di un Oikos, **dentro l'app**: repo git **cifrato** e **solo su Codeberg**.
    - **Sviluppo**: i tre progetti restano su **GitHub** (repo, PR, CI con `gh`). È una scelta del
-     committente per lo sviluppo; l'app non usa mai GitHub.
+     committente per lo sviluppo; le app non usano mai GitHub.
+   - Vale **anche per Alexandria**: dentro l'app il remoto git è solo Codeberg o una cartella locale
+     (PR #34).
 2. **Nulla nel browser di default**: identità pubblica, chiave principale avvolta dalla passkey,
    preferenze e contenuti stanno sul server, cifrati. In locale solo con "Ricorda su questo browser".
 3. **Cifratura end-to-end di default**; il server non legge mai contenuti né nomi.
