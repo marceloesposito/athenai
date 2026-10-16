@@ -1,23 +1,25 @@
 # Athenai — contesto per Claude Code
 
-Suite di scrittura collaborativa nel browser, cifrata end-to-end, europea, open source (AGPL) e
-no-profit. **Riprendendo il lavoro leggere prima `docs/HANDOVER.md`.** Piano e fasi: `docs/PIANO.md`. Nomi: `docs/GLOSSARIO.md`. Sicurezza:
-`docs/MODELLO-MINACCE.md` (si aggiorna nello stesso commit in cui cambia qualcosa di rilevante).
+App di scrittura collaborativa in tempo reale nel browser, sorella di Alexandria (ne riprende tono e
+aspetto, in versione ridotta): cifrata end-to-end, europea, open source (AGPL) e no-profit.
+**Riprendendo il lavoro leggere prima `docs/HANDOVER.md`.** Piano e fasi: `docs/PIANO.md`. Nomi:
+`docs/GLOSSARIO.md`. Sicurezza: `docs/MODELLO-MINACCE.md` (si aggiorna nello stesso commit in cui
+cambia qualcosa di rilevante).
 
 ## Principi non negoziabili
 - **Il server non legge mai i contenuti.** Tutto si cifra nel browser (libsodium). Nessun log o
   telemetria con contenuti; niente statistiche.
-- **Chiavi**: la chiave principale (dal Symbolon, 12 parole) non si salva mai in chiaro: solo
-  avvolta (passkey PRF o chiave WebCrypto non esportabile). In memoria solo mentre è sbloccata.
-- **Solo servizi europei** (decisione del committente): nessun fornitore americano — niente login
-  Google/GitHub/Apple, niente Drive/iCloud; dentro l'app l'unico servizio git è **Codeberg**. Lo
-  *sviluppo* invece resta su GitHub (repo, PR, CI). Prima di aggiungere un servizio o una
-  dipendenza esterna verificare origine e privacy. Mai CDN o script di terzi (CSP in `web/index.html`).
-- **Nulla nel browser di default**: tutto sul server, cifrato; in locale solo su scelta esplicita.
-- **Interfaccia minimale**: un'azione principale per schermata, il resto nel menu del profilo o
-  nascosto finché non serve.
+- **Chiavi**: la password non lascia il browser (Argon2id → chiave d'accesso + chiave che avvolge la
+  chiave principale). La chiave principale in chiaro esiste solo in memoria; nel browser solo
+  avvolta e solo con "resta connesso".
+- **Solo servizi europei** (decisione del committente): nessun fornitore americano nell'app. Lo
+  *sviluppo* resta su GitHub (repo, PR, CI). Prima di aggiungere un servizio o una dipendenza
+  esterna verificare origine e privacy. Mai CDN o script di terzi (CSP in `web/index.html`).
+- **Semplice come Alexandria**: dalla landing al primo documento in 2 clic; tre schede (Agorà,
+  Grapheion, Anamnesis), Mod+K per andare ovunque, il resto nascosto finché non serve.
+- **Nomi**: greci solo i luoghi (dove Alexandria usa il latino) e i ruoli; tutto il resto in parole
+  semplici. Mai tradotti, con la maiuscola (test in `web/src/i18n/`). Niente grafica grecheggiante.
 - **Logica in funzioni pure testate** (vitest); la logica condivisa con Alexandria sta in `logos`.
-- **Nomi greci** del glossario: mai tradotti, con la maiuscola (test in `web/src/i18n/`).
 
 ## Comandi
 ```sh
@@ -27,35 +29,35 @@ npm run dev          # web, API inoltrate a :8787
 npm test             # protocol + web + server (vitest; il server usa Postgres vero)
 npm run build        # web + typecheck del server
 docker compose -f deploy/compose.yml up -d --build   # tutto in Docker su :8787
+node scripts/e2e-athenai.mjs   # prova end-to-end in Chrome headless (server su :8787; PSQL, SHOTS)
 ```
-Prima di ogni commit: `npm test` e `npm run build` verdi. Su questo Mac Docker è Colima
-(`colima start` se non risponde).
+Prima di ogni commit: `npm test` e `npm run build` verdi. Sul Mac Docker è Colima (`colima start`).
+Sul PC Windows non c'è Docker: Postgres portabile in `%LOCALAPPDATA%\athenai-pg` (vedi HANDOVER).
+Dopo una nuova build dell'app il server va riavviato (`@fastify/static` registra i file all'avvio).
 
 ## Struttura
-- `web/src/crypto/` — libsodium: frase (recovery), chiavi e avvolgimento (keys), chiave del
-  dispositivo (deviceKey), passkey PRF (passkey), collegamento (deviceLink, relay), archivio locale.
-- `web/src/auth/` — OIDC verso Zitadel (oidc) o prova locale (trial).
-- `web/src/state/` — sessione (fasi: signedOut, needsSymbolon, protect, locked, ready) e preferenze.
-- `web/src/screens/` — Propylaia, Symbolon, sblocco, collegamento, Akropolis, Polis, Oikos
-  (Tomoi + Heuresis), Grapheion (TipTap, caricato a richiesta), Scholia, Keryx, Nomoi.
-- `web/src/grapheion/` — sincronizzazione cifrata di un Tomos (`sync.ts`, trasporto astratto,
-  provato con un server finto), Scholia nel documento Yjs, ancore, Heuresis.
-- `web/src/live/socket.ts` — WebSocket `/v1/live`: registro dei Tomos, presenza, avvisi
-  (Polis cambiata → la vista si ricarica da sola; Keryx).
-- `protocol/` — tipi delle API, testi firmati, buste cifrate, link d'invito, ruoli (condiviso).
-- `server/` — Fastify + Postgres, TypeScript nativo di Node 24 (`node src/main.ts`, solo sintassi
-  cancellabile): account con firma della chiave, sessioni, Polis, inviti, Oikos, rotazione, relay,
-  Tomos con registro cifrato e firmato (`routes/tomos.ts`), Keryx, tempo reale (`live.ts`).
-  Test d'integrazione in `server/test/` (anche WebSocket, con `injectWS`).
-- `scripts/` — prove end-to-end in Chrome headless: `e2e-polis.mjs` (P2), `e2e-tomos.mjs` (P3).
-  Con il server avviato su :8787; `PSQL` per il comando psql. Dopo una nuova build dell'app il
-  server va riavviato (`@fastify/static` registra i file all'avvio).
-- `web/src/api/` — client delle API; `web/src/state/polis.ts` — Polis e Oikos decifrati.
-- `deploy/` — compose (Postgres + server con l'app), Dockerfile, guida a Zitadel.
+- `protocol/` — tipi delle API, ruoli (archon/polites/xenos), testi firmati, buste, link (inviti
+  nella Polis e link per ospiti), nomi greci per gli ospiti. Condiviso da web e server.
+- `server/` — Fastify + Postgres, TypeScript nativo di Node 24: account con email e password
+  (`routes/accounts.ts`), sessioni anche per ospiti (`auth.ts`), Polis/Symposia/inviti/link ospite
+  e rotazione (`routes/polis.ts`), documenti e registro cifrato (`routes/documents.ts`), ospiti
+  (`routes/guests.ts`), notifiche, tempo reale (`live.ts`). Test d'integrazione in `server/test/`.
+- `web/src/crypto/` — libsodium: password e codice di recupero (`password.ts`), identità (`keys.ts`),
+  Polis/Symposia/link (`polis.ts`), documenti e notifiche (`docs.ts`), "resta connesso"
+  (`deviceKey.ts`, `keystore.ts`).
+- `web/src/state/` — sessione (`signedOut | guestInvite | ready | guest`), lavoro aperto
+  (`work.ts`: Polis, Symposia, documenti, viste), notifiche, preferenze cifrate.
+- `web/src/grapheion/` — sincronizzazione cifrata di un documento (`sync.ts`, trasporto astratto,
+  provato con un server finto), commenti nel documento Yjs, ancore, ricerca.
+- `web/src/shell/` — barra in alto (Polis/Symposion, tre schede, presenza, salvataggio, Condividi,
+  notifiche, profilo) e Cerca e vai (Mod+K).
+- `web/src/screens/` — Welcome (landing, registrazione, accesso, recupero), GuestJoin, Home (la
+  Polis), SymposionView (sezioni), Grapheion, commenti, condivisione, membri, impostazioni.
+- `deploy/` — compose (Postgres + server con l'app), Dockerfile, guida.
 
 ## Convenzioni
 - Commenti e messaggi di commit in italiano, identificatori in inglese. Ogni stringa visibile passa
   da `t()`, chiave in `it.ts` e `en.ts` (un test lo controlla).
-- Colori solo dai token di `web/src/styles/tokens.css`.
+- Colori solo dai token di `web/src/styles/tokens.css` (gli stessi di Alexandria, accento blu).
 - Branch + PR per ogni lavoro, merge a CI verde (lo approva il committente).
-- Prima di spendere soldi (hosting, Apple Developer) o attivare servizi pubblici: chiedere.
+- Prima di spendere soldi (hosting, Apple Developer) o attivare servizi pubblici (es. email): chiedere.

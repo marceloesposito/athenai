@@ -1,9 +1,9 @@
 // Connessione in tempo reale con il server (/v1/live): una per scheda, aperta finche' la sessione e'
-// sbloccata. Porta il registro dei Tomos aperti, la presenza e gli avvisi (Polis cambiata, Keryx).
-// Si riconnette da sola; a ogni riconnessione si reiscrive ai Tomos e riceve di nuovo il registro.
+// aperta. Porta il registro dei documenti aperti, la presenza e gli avvisi (Polis cambiata, notifiche).
+// Si riconnette da sola; a ogni riconnessione si reiscrive ai documenti e riceve di nuovo il registro.
 import type { ClientMessage, ServerMessage, SealedBox } from '@athenai/protocol';
 import { API_BASE, onToken } from '../api/client';
-import type { Transport, TomosHandlers, PushRequest } from '../grapheion/sync';
+import type { Transport, DocHandlers, PushRequest } from '../grapheion/sync';
 
 type Listener<T> = (x: T) => void;
 
@@ -15,10 +15,11 @@ class Live implements Transport {
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private ref = 0;
   private pushes = new Map<number, { resolve: (seq: number) => void; reject: (e: Error) => void }>();
-  private tomos = new Map<string, Set<TomosHandlers>>();
+  private docs = new Map<string, Set<DocHandlers>>();
   private polisListeners = new Set<Listener<string>>();
-  private keryxListeners = new Set<Listener<void>>();
+  private noticeListeners = new Set<Listener<void>>();
   private statusListeners = new Set<Listener<boolean>>();
+  private unauthorizedListeners = new Set<Listener<void>>();
 
   start(token: string) {
     if (this.token === token && this.ws) return;
@@ -64,8 +65,13 @@ class Live implements Transport {
       if (this.ws !== ws) return;
       this.ws = null;
       this.down();
-      // sessione non valida: niente tentativi a vuoto
-      if (ev.code === 4401 || !this.token) return;
+      // sessione non valida (scaduta, o link dell'ospite revocato): niente tentativi a vuoto
+      if (ev.code === 4401) {
+        this.token = null;
+        this.unauthorizedListeners.forEach((l) => l());
+        return;
+      }
+      if (!this.token) return;
       const delay = Math.min(10_000, 500 * 2 ** this.retry++);
       this.retryTimer = setTimeout(() => this.connect(), delay);
     };
@@ -86,18 +92,18 @@ class Live implements Transport {
         this.ready = true;
         this.retry = 0;
         this.statusListeners.forEach((l) => l(true));
-        for (const id of this.tomos.keys()) this.raw({ t: 'sub', tomosId: id });
+        for (const id of this.docs.keys()) this.raw({ t: 'sub', documentId: id });
         // durante la disconnessione la Polis puo' essere cambiata
         this.polisListeners.forEach((l) => l('*'));
         return;
       case 'log':
-        this.tomos.get(m.tomosId)?.forEach((h) => h.log(m.entries));
+        this.docs.get(m.documentId)?.forEach((h) => h.log(m.entries));
         return;
       case 'entry':
-        this.tomos.get(m.tomosId)?.forEach((h) => h.entry(m.entry));
+        this.docs.get(m.documentId)?.forEach((h) => h.entry(m.entry));
         return;
       case 'aw':
-        this.tomos.get(m.tomosId)?.forEach((h) => h.aw(m.from, m.cid, m.box));
+        this.docs.get(m.documentId)?.forEach((h) => h.aw(m.from, m.cid, m.box));
         return;
       case 'ack':
         this.pushes.get(m.ref)?.resolve(m.seq);
@@ -112,8 +118,8 @@ class Live implements Transport {
       case 'polis':
         this.polisListeners.forEach((l) => l(m.polisId));
         return;
-      case 'keryx':
-        this.keryxListeners.forEach((l) => l());
+      case 'notice':
+        this.noticeListeners.forEach((l) => l());
         return;
     }
   }
@@ -124,17 +130,17 @@ class Live implements Transport {
 
   // ---------------------------------------------------------------- Transport
 
-  subscribe(tomosId: string, h: TomosHandlers) {
-    const set = this.tomos.get(tomosId) ?? new Set();
+  subscribe(documentId: string, h: DocHandlers) {
+    const set = this.docs.get(documentId) ?? new Set();
     set.add(h);
-    this.tomos.set(tomosId, set);
-    // anche un secondo iscritto allo stesso Tomos deve ricevere il registro: si chiede di nuovo
-    if (this.ready) this.raw({ t: 'sub', tomosId });
+    this.docs.set(documentId, set);
+    // anche un secondo iscritto allo stesso documento deve ricevere il registro: si chiede di nuovo
+    if (this.ready) this.raw({ t: 'sub', documentId });
     return () => {
       set.delete(h);
       if (!set.size) {
-        this.tomos.delete(tomosId);
-        this.raw({ t: 'unsub', tomosId });
+        this.docs.delete(documentId);
+        this.raw({ t: 'unsub', documentId });
       }
     };
   }
@@ -148,8 +154,8 @@ class Live implements Transport {
     });
   }
 
-  aw(tomosId: string, box: SealedBox | null) {
-    if (this.ready) this.raw({ t: 'aw', tomosId, box });
+  aw(documentId: string, box: SealedBox | null) {
+    if (this.ready) this.raw({ t: 'aw', documentId, box });
   }
 
   // ---------------------------------------------------------------- avvisi
@@ -159,9 +165,15 @@ class Live implements Transport {
     return () => void this.polisListeners.delete(fn);
   }
 
-  onKeryx(fn: Listener<void>) {
-    this.keryxListeners.add(fn);
-    return () => void this.keryxListeners.delete(fn);
+  onNotice(fn: Listener<void>) {
+    this.noticeListeners.add(fn);
+    return () => void this.noticeListeners.delete(fn);
+  }
+
+  /** il server ha chiuso la sessione */
+  onUnauthorized(fn: Listener<void>) {
+    this.unauthorizedListeners.add(fn);
+    return () => void this.unauthorizedListeners.delete(fn);
   }
 
   onStatus(fn: Listener<boolean>) {

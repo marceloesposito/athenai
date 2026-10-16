@@ -1,35 +1,28 @@
 # Glossario di Athenai
 
-Athenai prende il nome greco di Atene (Ἀθῆναι), la prima grande democrazia. Gli spazi e gli
-oggetti hanno nomi propri greci, **uguali in tutte le lingue** e sempre con la maiuscola; un test
-(`web/src/i18n/glossary.ts`) controlla quelli già usati nell'interfaccia.
+Athenai (Ἀθῆναι, Atene) usa pochi nomi greci, con lo stesso criterio di Alexandria con il latino:
+**solo per i luoghi**, sempre con la maiuscola e **uguali in tutte le lingue**. Tutto il resto si
+dice con parole semplici (documento, commento, versione, condividi, impostazioni…). Un test
+(`web/src/i18n/glossary.ts`) controlla i nomi usati nell'interfaccia.
 
-| Spazio / oggetto | Nome | Significato |
+| Athenai | Che cos'è | In Alexandria |
 |---|---|---|
-| Gruppo di lavoro | **Polis** | la città: membri, ruoli, progetti |
-| Progetto condiviso | **Oikos** | la casa |
-| Board collaborativa (ambiente predefinito) | **Agorà** | la piazza dove si discute |
-| Pagina d'ingresso e accesso | **Propylaia** | l'ingresso monumentale dell'Acropoli |
-| Home, elenco delle Polis | **Akropolis** | la città alta |
-| Documento | **Tomos** | la sezione di rotolo (da cui "tomo") |
-| Editor | **Grapheion** | il luogo della scrittura |
-| Indice dei contenuti | **Pinax** | il catalogo di Callimaco ad Alessandria |
-| Documenti da leggere in sequenza | **Syntagma** | la raccolta ordinata |
-| Scrittura senza distrazioni | **Hesychia** | la quiete |
-| Modelli di documento | **Typoi** | le impronte, i modelli |
-| Esporta / pubblica | **Ekdosis** | l'edizione |
-| Fonti del progetto | **Thesauros** | il deposito, il tesoro |
-| Estratti dalle fonti | **Anthologia** | la raccolta di fiori |
-| Zone e filtri dell'Agorà | **Topoi** | i luoghi |
-| Commenti | **Scholia** | le note a margine dei manoscritti |
-| Revisione | **Dokimasia** | lo scrutinio ateniese |
-| Sessione dal vivo / presenza | **Symposion** | il banchetto della conversazione |
-| Notifiche | **Keryx** | l'araldo |
-| Attività | **Chronika** | le cronache |
-| Ricerca | **Heuresis** | la scoperta |
-| Versioni | **Anamnesis** | il ricordo |
-| Backup automatici | **Archeion** | l'archivio |
-| Chiavi e frase di recupero | **Symbolon** | il segno di riconoscimento spezzato in due |
-| Preferenze | **Nomoi** | le leggi |
+| **Polis** | il team: le persone con cui si lavora | — |
+| **Symposion** (pl. Symposia) | un progetto della Polis | Compendium |
+| **Agorà** | la board collaborativa del progetto: idee, risorse, schemi, post-it | Armarium (con la Tabula) |
+| **Grapheion** | l'ambiente di scrittura | Scriptorium |
+| **Anamnesis** | versioni, confronto, chi ha scritto cosa, contributi | Palimpsestus |
+| **Scholia** | i commenti a margine (il singolo: Scholion) | Marginalia |
+| **Pinax** | l'indice del documento (dalla R3) | Index |
+| **Hesychia** | la scrittura senza distrazioni (dalla R3) | Silentium |
 
-**Ruoli:** **Archon** (proprietario) · **Polites** (modifica) · **Mentore** (revisore) · **Xenos** (ospite, sola lettura).
+**Ruoli:** **Archon** (proprietario della Polis: crea i Symposia, invita) · **Polites**, plurale
+**Politai** (membri: scrivono e commentano) · **Xenos**, plurale **Xenoi** (ospiti da un link
+privato, per una sessione, con il nome di un personaggio greco).
+
+**In parole semplici, sempre:** documento, commento, notifica, cerca, versione, variante, condividi,
+impostazioni, chiave di recupero, membri.
+
+Nomi tolti nella riprogettazione del 12 ottobre 2026: Symbolon, Akropolis, Propylaia, Oikos, Tomos,
+Keryx, Heuresis, Nomoi, Mentore e gli altri nomi di fase (Thesauros, Anthologia, Topoi, Dokimasia,
+Chronika, Archeion).

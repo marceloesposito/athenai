@@ -1,5 +1,5 @@
-// Scholia (commenti) di un Tomos: vivono nel flusso "scholia", un documento Yjs separato dal testo
-// (cosi' il Mentore puo' commentare senza poter toccare il testo). Ogni Scholion e ogni risposta e'
+// Commenti (Scholia) di un documento: vivono nel flusso "scholia", un documento Yjs separato dal testo
+// (cosi' un ospite con il link "puo' commentare" commenta senza poter toccare il testo). Ogni Scholion e ogni risposta e'
 // una voce a se' di una mappa Yjs: modifiche concorrenti non si pestano i piedi. L'ancora e' una
 // coppia di posizioni relative Yjs nel documento del testo: resta al suo posto mentre gli altri
 // scrivono. Funzioni pure sul documento.
@@ -16,6 +16,8 @@ export interface Anchor {
 export interface Scholion {
   id: string;
   author: string;
+  /** il nome di chi scrive al momento del commento (per chi non conosce i profili, come gli ospiti) */
+  authorName?: string;
   body: string;
   created: string;
   anchor: Anchor | null;
@@ -27,6 +29,7 @@ export interface Reply {
   id: string;
   parent: string;
   author: string;
+  authorName?: string;
   body: string;
   created: string;
   mentions: string[];

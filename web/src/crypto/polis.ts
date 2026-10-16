@@ -1,9 +1,10 @@
-// Chiavi di Polis e Oikos (lato client). Una Polis ha una chiave simmetrica per epoca: ogni membro
+// Chiavi di Polis e Symposia (lato client). Una Polis ha una chiave simmetrica per epoca: ogni membro
 // la riceve cifrata verso la propria chiave X25519; quando qualcuno esce si passa all'epoca dopo e la
 // chiave nuova cifra quella vecchia (catena all'indietro), cosi' chi resta legge anche la storia e
-// chi e' uscito non legge il nuovo. Ogni Oikos ha la sua chiave per epoca, cifrata con quella della
-// Polis. Nomi e profili viaggiano in buste XChaCha20-Poly1305 legate (AD) all'oggetto.
-import { AD, inviteLink, type SealedBox, type PolisDetail, type Role, type CreatePolisRequest, type CreateInviteRequest, type AcceptInviteRequest, type CreateOikosRequest, type RotateRequest } from '@athenai/protocol';
+// chi e' uscito non legge il nuovo. Ogni Symposion ha la sua chiave per epoca, cifrata con quella
+// della Polis; gli ospiti la ricevono dal frammento del loro link. Nomi e profili viaggiano in buste
+// XChaCha20-Poly1305 legate (AD) all'oggetto.
+import { AD, inviteLink, guestLink, type SealedBox, type PolisDetail, type GuestMode, type CreatePolisRequest, type CreateInviteRequest, type AcceptInviteRequest, type CreateSymposionRequest, type CreateGuestLinkRequest, type RotateRequest } from '@athenai/protocol';
 import { sodium, toB64, fromB64 } from './sodium';
 import type { Identity } from './keys';
 
@@ -63,11 +64,11 @@ export async function openSealedKey(id: Identity, sealed: string): Promise<Uint8
 export interface Keyring {
   /** chiave della Polis per epoca */
   polis: Map<number, Uint8Array>;
-  /** chiave dell'Oikos per epoca */
-  oikos: Map<string, Map<number, Uint8Array>>;
+  /** chiave del Symposion per epoca */
+  symposia: Map<string, Map<number, Uint8Array>>;
 }
 
-/** Tutte le chiavi che posso aprire: le mie buste, poi la catena all'indietro, poi gli Oikos. */
+/** Tutte le chiavi che posso aprire: le mie buste, poi la catena all'indietro, poi i Symposia. */
 export async function keyring(detail: PolisDetail, id: Identity): Promise<Keyring> {
   const polis = new Map<number, Uint8Array>();
   for (const k of detail.myKeys) {
@@ -83,17 +84,17 @@ export async function keyring(detail: PolisDetail, id: Identity): Promise<Keyrin
       if (k) polis.set(e - 1, k);
     }
   }
-  const oikos = new Map<string, Map<number, Uint8Array>>();
-  for (const o of detail.oikos) {
+  const symposia = new Map<string, Map<number, Uint8Array>>();
+  for (const o of detail.symposia) {
     const m = new Map<number, Uint8Array>();
     for (const k of o.keys) {
       const pk = polis.get(k.polisEpoch);
-      const key = pk ? await openBox(pk, k.wrapped, AD.oikosKey(o.id, k.epoch)) : null;
+      const key = pk ? await openBox(pk, k.wrapped, AD.symposionKey(o.id, k.epoch)) : null;
       if (key) m.set(k.epoch, key);
     }
-    oikos.set(o.id, m);
+    symposia.set(o.id, m);
   }
-  return { polis, oikos };
+  return { polis, symposia };
 }
 
 export const currentKey = (ring: Keyring, epoch: number) => ring.polis.get(epoch);
@@ -106,7 +107,7 @@ export interface PolisMeta {
 export interface Profile {
   name: string;
 }
-export interface OikosMeta {
+export interface SymposionMeta {
   name: string;
 }
 
@@ -124,12 +125,12 @@ export async function createPolisRequest(accountId: string, boxPk: string, name:
   };
 }
 
-/** Invito: la chiave della Polis cifrata con un segreto che sta solo nel link (dopo #). */
-export async function createInvite(origin: string, key: Uint8Array, epoch: number, role: Exclude<Role, 'archon'>, hours = 72, uses = 1): Promise<{ req: CreateInviteRequest; link: string }> {
+/** Invito nella Polis: la sua chiave cifrata con un segreto che sta solo nel link (dopo #). */
+export async function createInvite(origin: string, key: Uint8Array, epoch: number, hours = 72, uses = 1): Promise<{ req: CreateInviteRequest; link: string }> {
   const s = await sodium();
   const inviteId = crypto.randomUUID();
   const secret = await newKey();
-  const req: CreateInviteRequest = { id: inviteId, role, key: await sealBox(secret, key, AD.invite(inviteId), epoch), hours, uses };
+  const req: CreateInviteRequest = { id: inviteId, key: await sealBox(secret, key, AD.invite(inviteId), epoch), hours, uses };
   return { req, link: inviteLink(origin, inviteId, toB64(s, secret)) };
 }
 
@@ -157,17 +158,57 @@ export async function acceptInvite(
   };
 }
 
-export async function createOikosRequest(polisKey: Uint8Array, polisEpoch: number, name: string): Promise<CreateOikosRequest> {
-  const oikosId = crypto.randomUUID();
-  const oikosKey = await newKey();
+export async function createSymposionRequest(polisKey: Uint8Array, polisEpoch: number, name: string): Promise<{ req: CreateSymposionRequest; key: Uint8Array }> {
+  const id = crypto.randomUUID();
+  const key = await newKey();
   return {
-    id: oikosId,
-    meta: await sealJson(oikosKey, { name } satisfies OikosMeta, AD.oikosMeta(oikosId), 1),
-    key: await sealBox(polisKey, oikosKey, AD.oikosKey(oikosId, 1), polisEpoch),
+    key,
+    req: {
+      id,
+      meta: await sealJson(key, { name } satisfies SymposionMeta, AD.symposionMeta(id), 1),
+      key: await sealBox(polisKey, key, AD.symposionKey(id, 1), polisEpoch),
+    },
   };
 }
 
-/** Dopo un'uscita: nuova epoca per la Polis e per ogni Oikos, consegnata ai soli membri rimasti. */
+/**
+ * Link per gli ospiti di un Symposion: tutte le sue chiavi (per leggere anche i testi piu' vecchi) e
+ * il suo nome, cifrati con un segreto che sta solo nel frammento del link.
+ */
+export async function createGuestLinkRequest(
+  origin: string,
+  symposionKeys: Map<number, Uint8Array>,
+  epoch: number,
+  name: string,
+  mode: GuestMode,
+  hours = 24 * 7,
+): Promise<{ req: CreateGuestLinkRequest; link: string }> {
+  const s = await sodium();
+  const id = crypto.randomUUID();
+  const secret = await newKey();
+  const keys = Object.fromEntries([...symposionKeys].map(([e, k]) => [e, toB64(s, k)]));
+  return {
+    req: { id, mode, hours, key: await sealJson(secret, keys, AD.guestLink(id), epoch), meta: await sealJson(secret, { name }, AD.guestLink(id), epoch) },
+    link: guestLink(origin, id, toB64(s, secret)),
+  };
+}
+
+/** L'ospite apre il link: le chiavi del Symposion per epoca e il suo nome, o null se il segreto e' sbagliato. */
+export async function openGuestLink(linkId: string, secretB64: string, key: SealedBox, meta: SealedBox): Promise<{ keys: Map<number, Uint8Array>; name: string } | null> {
+  const s = await sodium();
+  let secret: Uint8Array;
+  try {
+    secret = fromB64(s, secretB64);
+  } catch {
+    return null;
+  }
+  const raw = await openJson<Record<string, string>>(secret, key, AD.guestLink(linkId));
+  const m = await openJson<SymposionMeta>(secret, meta, AD.guestLink(linkId));
+  if (!raw || !m) return null;
+  return { keys: new Map(Object.entries(raw).map(([e, k]) => [Number(e), fromB64(s, k)])), name: m.name };
+}
+
+/** Dopo un'uscita: nuova epoca per la Polis e per ogni Symposion, consegnata ai soli membri rimasti. */
 export async function rotationRequest(detail: PolisDetail, ring: Keyring, meta: PolisMeta): Promise<RotateRequest | null> {
   const prev = ring.polis.get(detail.epoch);
   if (!prev) return null;
@@ -177,7 +218,7 @@ export async function rotationRequest(detail: PolisDetail, ring: Keyring, meta: 
     epoch,
     envelopes: await Promise.all(detail.members.map(async (m) => ({ accountId: m.accountId, sealed: await sealKeyFor(m.boxPk, next) }))),
     prev: await sealBox(next, prev, AD.keyChain(detail.id, epoch), epoch),
-    oikos: await Promise.all(detail.oikos.map(async (o) => ({ oikosId: o.id, key: await sealBox(next, await newKey(), AD.oikosKey(o.id, o.epoch + 1), epoch) }))),
+    symposia: await Promise.all(detail.symposia.map(async (o) => ({ symposionId: o.id, key: await sealBox(next, await newKey(), AD.symposionKey(o.id, o.epoch + 1), epoch) }))),
     meta: await sealJson(next, meta, AD.polisMeta(detail.id), epoch),
   };
 }

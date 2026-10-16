@@ -1,42 +1,39 @@
-# Accesso con Zitadel (sviluppo in locale)
+# Athenai su un server
 
-Athenai usa **Zitadel** (Svizzera, open source, auto-ospitato) come fornitore d'identità: **solo
-passkey ed email**, nessun fornitore esterno (né americano né altro). Senza Zitadel il server può
-partire in **modalità di prova** (`ALLOW_TRIAL=true`: account che dura quanto la scheda,
-crittografia vera).
+Athenai è un solo servizio (il server, che serve anche l'app) più Postgres. L'accesso è con
+**email e password**, gestito dal server stesso. La password non arriva mai al server: il browser ne
+ricava due chiavi con Argon2id, una per entrare (il server ne salva solo l'hash) e una che apre la
+chiave principale dell'utente (resta nel browser). Nessun fornitore d'identità esterno.
 
-> Stato: il compose di Athenai (`deploy/compose.yml`: Postgres + server con l'app) è provato. La
-> parte di Zitadel è scritta sul compose ufficiale v4.19.4 ma **non ancora provata**.
-
-## 1. Avviare Zitadel
-
-Si usa il compose ufficiale, fissato a una versione:
+## Avviare
 
 ```sh
-mkdir zitadel && cd zitadel
-curl -LO https://raw.githubusercontent.com/zitadel/zitadel/v4.19.4/deploy/compose/docker-compose.yml
-curl -L  https://raw.githubusercontent.com/zitadel/zitadel/v4.19.4/deploy/compose/.env.example -o .env
-# in .env: ZITADEL_VERSION=v4.19.4, ZITADEL_MASTERKEY (32 caratteri casuali),
-# LOGIN_SESSION_COOKIE_SECRET (openssl rand -base64 32), dominio localhost
-docker compose up -d
+docker compose -f deploy/compose.yml up -d --build   # http://localhost:8787
 ```
 
-## 2. Configurare Athenai nella console di Zitadel
+Variabili utili (in un file `.env` accanto al compose, o nell'ambiente):
 
-1. **Progetto** "Athenai" → **Applicazione** di tipo *User Agent* (app nel browser), metodo
-   **PKCE**, senza segreto client.
-2. Redirect URI: `http://localhost:5173/` (e lo stesso come *post logout*). In produzione
-   l'indirizzo pubblico, solo `https`.
-3. **Login policy**: abilitare *passwordless* (passkey) e la registrazione via email; nessuna
-   password obbligatoria.
-4. **Nessun fornitore esterno**: niente Google, GitHub o Apple.
-5. Nessun dato dei contenuti passa da qui: Zitadel conosce solo email, nome e i fornitori usati.
+| Variabile | Default | A cosa serve |
+|---|---|---|
+| `POSTGRES_PASSWORD` | `athenai-dev` | password del database (cambiarla in produzione) |
+| `SERVER_SECRET` | `cambiami-in-produzione` | rende stabili i parametri finti restituiti per le email sconosciute (così non si scopre chi è registrato) |
+| `ALLOW_SIGNUP` | `true` | `false` per un server privato: entrano solo gli account già creati e gli ospiti dei link |
+| `ATHENAI_PORT` | `8787` | porta su cui ascolta (solo su 127.0.0.1: davanti serve un proxy con HTTPS) |
 
-## 3. Collegare Athenai
+In produzione serve **HTTPS** (es. Caddy o Traefik davanti al servizio, anche per il WebSocket
+`/v1/live`).
+
+## Email
+
+Al lancio non si mandano email: niente verifica dell'indirizzo né reset via email. Chi dimentica
+la password rientra con il **codice di recupero** (si crea dalle impostazioni); senza codice i testi
+cifrati non si possono riaprire, per costruzione. Per la verifica dell'indirizzo servirà un servizio
+email europeo (Brevo o Infomaniak): si attiverà più avanti, dopo averlo deciso insieme.
+
+## Senza Docker (sviluppo)
 
 ```sh
-# app (sviluppo)
-cp deploy/web.env.example web/.env.local      # VITE_OIDC_ISSUER, VITE_OIDC_CLIENT_ID
-# server: OIDC_ISSUER e OIDC_AUDIENCE (= client id) in server/.env, ALLOW_TRIAL=false
-# oppure con Docker: OIDC_ISSUER=... OIDC_AUDIENCE=... ALLOW_TRIAL=false docker compose -f deploy/compose.yml up -d --build
+cp server/.env.example server/.env   # DATABASE_URL verso un Postgres 17
+npm run dev:server                   # API su :8787
+npm run dev                          # app su :5173 con le API inoltrate
 ```

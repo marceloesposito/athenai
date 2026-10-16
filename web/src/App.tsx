@@ -1,60 +1,47 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useSession } from './state/session';
 import { usePrefs } from './state/prefs';
-import { useLang, t } from './i18n';
-import { Propylaia } from './screens/Propylaia';
-import { SymbolonCreate } from './screens/SymbolonCreate';
-import { ProtectStep } from './screens/ProtectStep';
-import { Unlock } from './screens/Unlock';
-import { Akropolis } from './screens/Akropolis';
-import { PolisView } from './screens/PolisView';
-import { OikosView } from './screens/OikosView';
-import { usePolis } from './state/polis';
-import { Kylix } from './brand/Kylix';
-import { Offline } from './screens/Offline';
-
-// l'editor (TipTap) si scarica solo quando si apre un Tomos
-const Grapheion = lazy(() => import('./screens/Grapheion').then((m) => ({ default: m.Grapheion })));
+import { useWork } from './state/work';
+import { useLang } from './i18n';
+import { Welcome } from './screens/Welcome';
+import { GuestJoin } from './screens/GuestJoin';
+import { Home } from './screens/Home';
+import { SymposionView } from './screens/SymposionView';
+import { Shell } from './shell/Shell';
+import { Logo } from './brand/Logo';
 
 export default function App() {
   useLang();
   usePrefs();
   const { phase, init } = useSession();
-  const view = usePolis((s) => s.view.kind);
+  const view = useWork((s) => s.view.kind);
+  const started = useWork((s) => s.polis !== null || s.view.kind === 'symposion');
   useEffect(() => {
     void init();
   }, [init]);
+  // appena dentro (account o ospite) si apre il lavoro
+  useEffect(() => {
+    if (phase === 'ready' || phase === 'guest') void useWork.getState().start();
+  }, [phase]);
   switch (phase) {
     case 'loading':
       return (
         <main className="splash" aria-busy="true">
-          <Kylix size={56} title={t('auth.returning')} />
+          <Logo size={40} />
         </main>
       );
-    case 'offline':
-      return <Offline />;
     case 'signedOut':
-      return <Propylaia />;
-    case 'needsSymbolon':
-      return <SymbolonCreate />;
-    case 'protect':
-      return <ProtectStep />;
-    case 'locked':
-      return <Unlock />;
+      return <Welcome />;
+    case 'guestInvite':
+      return <GuestJoin />;
     case 'ready':
-      switch (view) {
-        case 'polis':
-          return <PolisView />;
-        case 'oikos':
-          return <OikosView />;
-        case 'tomos':
-          return (
-            <Suspense fallback={<main className="splash" aria-busy="true"><Kylix size={56} title={t('grapheion.opening')} /></main>}>
-              <Grapheion />
-            </Suspense>
-          );
-        default:
-          return <Akropolis />;
-      }
+    case 'guest':
+      if (!started)
+        return (
+          <main className="splash" aria-busy="true">
+            <Logo size={40} />
+          </main>
+        );
+      return <Shell>{view === 'symposion' ? <SymposionView /> : <Home />}</Shell>;
   }
 }

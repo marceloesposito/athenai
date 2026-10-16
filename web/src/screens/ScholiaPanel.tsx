@@ -1,5 +1,5 @@
-// Scholia: le note a margine del Tomos. Una colonna a destra, aperta solo quando serve: per leggere le
-// discussioni, rispondere, segnare come risolte. Le @menzioni avvisano (Keryx) chi viene chiamato.
+// Scholia: i commenti a margine del documento. Una colonna a destra, aperta solo quando serve: per
+// leggere le discussioni, rispondere, segnare come risolte. Le @menzioni avvisano chi viene chiamato.
 import { useState } from 'react';
 import { Check, RotateCcw, Trash2, X } from 'lucide-react';
 import { t, useLang, getLang } from '../i18n';
@@ -32,22 +32,22 @@ export function ScholiaPanel(p: Props) {
   const fmt = new Intl.DateTimeFormat(getLang(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   const open = p.threads.filter((x) => !x.resolved);
   const resolved = p.threads.filter((x) => x.resolved);
-  const name = (id: string) => p.names.get(id) ?? '…';
+  const name = (x: { author: string; authorName?: string }) => p.names.get(x.author) ?? x.authorName ?? '…';
 
   const thread = (x: Thread) => (
     <article key={x.id} className={`scholion ${x.id === p.active ? 'is-active' : ''} ${x.resolved ? 'is-resolved' : ''}`} onClick={() => p.onSelect(x.id)}>
       {x.anchor?.quote && <blockquote className="scholion__quote">{x.anchor.quote}</blockquote>}
       <header className="scholion__head">
-        <strong>{name(x.author)}</strong>
+        <strong>{name(x)}</strong>
         <span className="hint">{fmt.format(new Date(x.created))}</span>
         <span className="topbar__spacer" />
         {p.canComment && (
-          <button className="icon-btn" title={x.resolved ? t('scholia.reopen') : t('scholia.resolve')} aria-label={x.resolved ? t('scholia.reopen') : t('scholia.resolve')} onClick={(e) => (e.stopPropagation(), p.onResolve(x.id, !x.resolved))}>
+          <button className="icon-btn" title={x.resolved ? t('comments.reopen') : t('comments.resolve')} aria-label={x.resolved ? t('comments.reopen') : t('comments.resolve')} onClick={(e) => (e.stopPropagation(), p.onResolve(x.id, !x.resolved))}>
             {x.resolved ? <RotateCcw size={14} /> : <Check size={14} />}
           </button>
         )}
         {x.author === p.me && (
-          <button className="icon-btn" title={t('scholia.delete')} aria-label={t('scholia.delete')} onClick={(e) => (e.stopPropagation(), p.onDelete(x.id))}>
+          <button className="icon-btn" title={t('comments.delete')} aria-label={t('comments.delete')} onClick={(e) => (e.stopPropagation(), p.onDelete(x.id))}>
             <Trash2 size={14} />
           </button>
         )}
@@ -55,7 +55,7 @@ export function ScholiaPanel(p: Props) {
       <p className="scholion__body">{x.body}</p>
       {x.replies.map((r) => (
         <div key={r.id} className="scholion__reply">
-          <strong>{name(r.author)}</strong> <span className="hint">{fmt.format(new Date(r.created))}</span>
+          <strong>{name(r)}</strong> <span className="hint">{fmt.format(new Date(r.created))}</span>
           <p className="scholion__body">{r.body}</p>
         </div>
       ))}
@@ -71,7 +71,7 @@ export function ScholiaPanel(p: Props) {
               setReplies({ ...replies, [x.id]: '' });
             }}
             people={p.people}
-            placeholder={t('scholia.reply')}
+            placeholder={t('comments.reply')}
           />
         </div>
       )}
@@ -81,7 +81,7 @@ export function ScholiaPanel(p: Props) {
   return (
     <aside className="scholia" aria-label="Scholia">
       <header className="scholia__head">
-        <h2>Scholia</h2>
+        <h2>Scholia{open.length ? ` · ${open.length}` : ''}</h2>
         <button className="icon-btn" aria-label={t('common.close')} onClick={p.onClose}>
           <X size={16} />
         </button>
@@ -108,23 +108,23 @@ export function ScholiaPanel(p: Props) {
             }}
             onCancel={p.onCancelDraft}
             people={p.people}
-            placeholder={t('scholia.placeholder')}
+            placeholder={t('comments.placeholder')}
           />
           <div className="row">
             <button type="button" className="btn" onClick={p.onCancelDraft}>
               {t('common.cancel')}
             </button>
             <button type="submit" className="btn btn--primary" disabled={!draft.trim()}>
-              {t('scholia.add')}
+              {t('comments.send')}
             </button>
           </div>
         </form>
       )}
       {open.map(thread)}
-      {!open.length && !p.draft && <p className="hint">{t(p.canComment ? 'scholia.empty' : 'scholia.emptyRead')}</p>}
+      {!open.length && !p.draft && <p className="hint">{t(p.canComment ? 'comments.empty' : 'comments.emptyRead')}</p>}
       {!!resolved.length && (
         <button className="link-btn" onClick={() => setShowResolved(!showResolved)}>
-          {t(showResolved ? 'scholia.hideResolved' : 'scholia.showResolved', { n: resolved.length })}
+          {t(showResolved ? 'comments.hideResolved' : 'comments.showResolved', { n: resolved.length })}
         </button>
       )}
       {showResolved && resolved.map(thread)}

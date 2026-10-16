@@ -38,7 +38,9 @@ export function guestRoutes(app: FastifyInstance, sql: Sql, auth: Auth, hub: Hub
     if (!isUuid(id) || !isB64url(b?.signPk, 64) || !isB64url(b.boxPk, 64)) return bad(reply);
     const l = await link(id);
     if (!l) return bad(reply, 'not-found', 404);
-    const present = await sql<{ name: string }[]>`select name from guest_sessions where symposion_id = ${l.symposion_id} and expires_at > now()`;
+    const present = await sql<{ name: string }[]>`
+      select g.name from guest_sessions g join guest_links k on k.id = g.link_id
+      where g.symposion_id = ${l.symposion_id} and g.expires_at > now() and k.expires_at > now()`;
     if (present.length >= MAX_GUESTS) return bad(reply, 'too-many-guests', 429);
     const name = pickGuestName(present.map((p) => p.name), () => randomInt(0, 1_000_000) / 1_000_000);
     const token = randomToken();
@@ -62,8 +64,9 @@ export function guestRoutes(app: FastifyInstance, sql: Sql, auth: Auth, hub: Hub
       select g.link_id, s.polis_id, g.expires_at from guest_sessions g join symposia s on s.id = g.symposion_id where g.id = ${p.id}`;
     const members = await sql<{ id: string; sign_pk: string; box_pk: string }[]>`
       select a.id, a.sign_pk, a.box_pk from polis_members m join accounts a on a.id = m.account_id where m.polis_id = ${g.polis_id}`;
+    // anche gli ospiti di prima: le loro chiavi servono a verificare quello che hanno scritto
     const guests = await sql<{ id: string; sign_pk: string; box_pk: string; name: string }[]>`
-      select id, sign_pk, box_pk, name from guest_sessions where symposion_id = ${p.symposionId} and expires_at > now()`;
+      select id, sign_pk, box_pk, name from guest_sessions where symposion_id = ${p.symposionId}`;
     const out: GuestContext = {
       guestId: p.id,
       name: p.name,

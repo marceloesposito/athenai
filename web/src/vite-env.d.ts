@@ -1,8 +1,6 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_OIDC_ISSUER?: string;
-  readonly VITE_OIDC_CLIENT_ID?: string;
   /** indirizzo del server di Athenai (vuoto = stessa origine) */
   readonly VITE_API_URL?: string;
 }

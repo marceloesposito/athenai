@@ -1,32 +1,29 @@
-// Preferenze dell'utente (tema, lingua, modo di sblocco): stanno sul server, cifrate con una chiave
-// derivata dalla sua chiave principale. Prima dell'accesso valgono quelle del browser; nulla si
-// salva in locale.
+// Preferenze dell'utente (nome, tema, lingua): stanno sul server, cifrate con una chiave derivata
+// dalla sua chiave principale. Prima dell'accesso valgono quelle del browser; nulla si salva in locale.
 import { create } from 'zustand';
 import { setLang, getLang, type Lang } from '../i18n';
 
 export type Theme = 'light' | 'dark' | 'system';
-export type UnlockMode = 'passkey' | 'device' | 'phrase';
 
 export interface UserPrefs {
+  name: string;
   theme: Theme;
   lang: Lang;
-  /** come l'utente ha scelto di sbloccare (assente = da scegliere) */
-  unlock?: UnlockMode;
 }
 
 export function applyTheme(t: Theme) {
-  if (t === 'system') delete document.documentElement.dataset.theme;
-  else document.documentElement.dataset.theme = t;
+  document.documentElement.dataset.theme = t;
 }
 
 interface PrefsState extends UserPrefs {
-  /** chi salva (impostato dalla sessione quando l'utente e' sbloccato) */
+  /** chi salva (impostato dalla sessione quando l'utente e' dentro) */
   saver: ((p: UserPrefs) => Promise<void>) | null;
   apply(p: Partial<UserPrefs>): void;
   update(p: Partial<UserPrefs>): Promise<void>;
 }
 
 export const usePrefs = create<PrefsState>((set, get) => ({
+  name: '',
   theme: 'system',
   lang: getLang(),
   saver: null,
@@ -37,7 +34,7 @@ export const usePrefs = create<PrefsState>((set, get) => ({
   },
   async update(p) {
     get().apply(p);
-    const { theme, lang, unlock, saver } = get();
-    await saver?.({ theme, lang, unlock });
+    const { name, theme, lang, saver } = get();
+    await saver?.({ name, theme, lang });
   },
 }));

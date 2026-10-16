@@ -1,4 +1,4 @@
-// Sincronizzazione cifrata di un Tomos (sul modello di secsync): due documenti Yjs, il testo e gli
+// Sincronizzazione cifrata di un documento (sul modello di secsync): due documenti Yjs, il testo e gli
 // Scholia, piu' la presenza (awareness) sul testo. Le modifiche locali si raccolgono per qualche
 // decina di millisecondi, si uniscono, si cifrano e si firmano, e partono una alla volta; quelle
 // degli altri arrivano dal registro, si verificano e si aprono. Ogni tanto chi puo' scrivere manda
@@ -8,11 +8,11 @@ import * as Y from 'yjs';
 import { Awareness, encodeAwarenessUpdate, applyAwarenessUpdate, removeAwarenessStates } from 'y-protocols/awareness';
 import * as decoding from 'lib0/decoding';
 import type { LogEntry, SealedBox, Stream, EntryKind, ClientMessage } from '@athenai/protocol';
-import { sealEntry, openEntry, sealAwareness, openAwareness, type EpochKeys } from '../crypto/tomos';
+import { sealEntry, openEntry, sealAwareness, openAwareness, type EpochKeys } from '../crypto/docs';
 
 export type PushRequest = Omit<Extract<ClientMessage, { t: 'push' }>, 't' | 'ref'>;
 
-export interface TomosHandlers {
+export interface DocHandlers {
   /** il registro intero (all'iscrizione e a ogni riconnessione) */
   log(entries: LogEntry[]): void;
   entry(e: LogEntry): void;
@@ -20,17 +20,17 @@ export interface TomosHandlers {
 }
 
 export interface Transport {
-  subscribe(tomosId: string, h: TomosHandlers): () => void;
+  subscribe(documentId: string, h: DocHandlers): () => void;
   /** risolve con il numero della voce; rifiuta con Error(codice) */
   push(req: PushRequest): Promise<number>;
-  aw(tomosId: string, box: SealedBox | null): void;
+  aw(documentId: string, box: SealedBox | null): void;
 }
 
 export interface SyncOptions {
-  tomosId: string;
+  documentId: string;
   accountId: string;
   signSk: Uint8Array;
-  /** le chiavi dell'Oikos: l'epoca attuale (con cui si scrive) e tutte quelle che so aprire */
+  /** le chiavi del Symposion: l'epoca attuale (con cui si scrive) e tutte quelle che so aprire */
   keys(): { epoch: number; ring: EpochKeys };
   signPkOf(accountId: string): string | undefined;
   transport: Transport;
@@ -77,7 +77,7 @@ function awarenessClients(update: Uint8Array): number[] {
   return ids;
 }
 
-export class TomosSync {
+export class DocSync {
   readonly text = new Y.Doc();
   readonly scholia = new Y.Doc();
   readonly awareness: Awareness;
@@ -112,7 +112,7 @@ export class TomosSync {
       if (origin === REMOTE) return;
       if ([...added, ...updated, ...removed].includes(this.text.clientID)) this.sendAwareness();
     });
-    this.unsubscribe = this.o.transport.subscribe(this.o.tomosId, {
+    this.unsubscribe = this.o.transport.subscribe(this.o.documentId, {
       log: (entries) => void this.onLog(entries),
       entry: (e) => void this.onEntry(e),
       aw: (from, cid, box) => void this.onAwareness(from, cid, box),
@@ -139,7 +139,7 @@ export class TomosSync {
 
   private async apply(e: LogEntry, st: StreamState): Promise<boolean> {
     const { ring } = this.o.keys();
-    const data = await openEntry(this.o.tomosId, e, ring, this.o.signPkOf);
+    const data = await openEntry(this.o.documentId, e, ring, this.o.signPkOf);
     if (!data) return false;
     Y.applyUpdate(st.doc, data, REMOTE);
     st.maxSeq = Math.max(st.maxSeq, e.seq);
@@ -236,8 +236,8 @@ export class TomosSync {
     const { epoch, ring } = this.o.keys();
     const key = ring.get(epoch);
     if (!key) throw new Error('stale-key');
-    const { box, sig } = await sealEntry(key, epoch, this.o.tomosId, stream, kind, this.o.accountId, data, this.o.signSk);
-    return this.o.transport.push({ tomosId: this.o.tomosId, stream, kind, box, sig, ...(kind === 'snapshot' ? { covers } : {}) });
+    const { box, sig } = await sealEntry(key, epoch, this.o.documentId, stream, kind, this.o.accountId, data, this.o.signSk);
+    return this.o.transport.push({ documentId: this.o.documentId, stream, kind, box, sig, ...(kind === 'snapshot' ? { covers } : {}) });
   }
 
   /**
@@ -276,7 +276,7 @@ export class TomosSync {
       const key = ring.get(epoch);
       if (!key || this.closed) return;
       const update = encodeAwarenessUpdate(this.awareness, [this.text.clientID]);
-      this.o.transport.aw(this.o.tomosId, await sealAwareness(key, epoch, this.o.tomosId, this.o.accountId, update));
+      this.o.transport.aw(this.o.documentId, await sealAwareness(key, epoch, this.o.documentId, this.o.accountId, update));
     }, 80);
   }
 
@@ -287,7 +287,7 @@ export class TomosSync {
       if (ids?.length) removeAwarenessStates(this.awareness, ids, REMOTE);
       return;
     }
-    const update = await openAwareness(this.o.keys().ring, this.o.tomosId, from, box);
+    const update = await openAwareness(this.o.keys().ring, this.o.documentId, from, box);
     if (!update) return;
     const isNew = !this.peers.has(cid);
     try {
@@ -301,7 +301,7 @@ export class TomosSync {
     if (isNew) this.sendAwareness();
   }
 
-  /** account presenti in questo Tomos (oltre a me), dalla presenza */
+  /** persone presenti in questo documento (oltre a me), dalla presenza */
   presentAccounts(): Map<number, { name?: string; color?: string }> {
     const out = new Map<number, { name?: string; color?: string }>();
     for (const [id, st] of this.awareness.getStates()) if (id !== this.text.clientID && st.user) out.set(id, st.user as { name?: string; color?: string });
@@ -318,7 +318,7 @@ export class TomosSync {
       if (st.snapTimer) clearTimeout(st.snapTimer);
     }
     if (this.awTimer) clearTimeout(this.awTimer);
-    this.o.transport.aw(this.o.tomosId, null);
+    this.o.transport.aw(this.o.documentId, null);
     this.unsubscribe();
     this.awareness.destroy();
     this.listeners.clear();

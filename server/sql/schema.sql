@@ -101,10 +101,12 @@ create table if not exists guest_links (
   created_at timestamptz not null default now()
 );
 
--- ospiti: una sessione per scheda, con un nome di personaggio greco e chiavi usa e getta
+-- ospiti: una sessione per scheda, con un nome di personaggio greco e chiavi usa e getta. La sessione
+-- resta anche quando il link viene revocato o scade (non vale piu'): la sua chiave pubblica serve a
+-- verificare quello che l'ospite ha scritto.
 create table if not exists guest_sessions (
   id uuid primary key default gen_random_uuid(),
-  link_id uuid not null references guest_links on delete cascade,
+  link_id uuid references guest_links on delete set null,
   symposion_id uuid not null references symposia on delete cascade,
   name text not null,
   sign_pk text not null unique,
@@ -141,6 +143,11 @@ create table if not exists notices (
   sealed text not null,
   created_at timestamptz not null default now()
 );
+
+-- (database creati prima: la sessione dell'ospite non sparisce piu' con il suo link)
+alter table guest_sessions alter column link_id drop not null;
+alter table guest_sessions drop constraint if exists guest_sessions_link_id_fkey;
+alter table guest_sessions add constraint guest_sessions_link_id_fkey foreign key (link_id) references guest_links on delete set null;
 
 create index if not exists polis_members_account on polis_members (account_id);
 create index if not exists symposia_polis on symposia (polis_id);

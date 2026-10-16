@@ -36,6 +36,13 @@ export async function roleIn(sql: Sql, polisId: string, accountId: string): Prom
 export function polisRoutes(app: FastifyInstance, sql: Sql, auth: Auth, hub: Hub) {
   const pre = { preHandler: auth.require };
   const archonOf = async (polisId: string, accountId: string) => can.govern((await roleIn(sql, polisId, accountId)) ?? 'xenos');
+  /** gli ospiti senza piu' un link valido: connessioni chiuse */
+  const kickGuests = async (polisId: string) => {
+    const rows = await sql<{ id: string }[]>`
+      select g.id from guest_sessions g join symposia s on s.id = g.symposion_id
+      where s.polis_id = ${polisId} and (g.link_id is null or not exists (select 1 from guest_links l where l.id = g.link_id and l.expires_at > now()))`;
+    for (const r of rows) hub.kick(r.id);
+  };
 
   // ---------------------------------------------------------------- Polis
 
@@ -79,7 +86,7 @@ export function polisRoutes(app: FastifyInstance, sql: Sql, auth: Auth, hub: Hub
     const guests = await sql<{ id: string; symposion_id: string; name: string; sign_pk: string; box_pk: string; mode: GuestMode; expires_at: Date }[]>`
       select g.id, g.symposion_id, g.name, g.sign_pk, g.box_pk, l.mode, g.expires_at from guest_sessions g
       join guest_links l on l.id = g.link_id join symposia s on s.id = g.symposion_id
-      where s.polis_id = ${id} and g.expires_at > now() order by g.expires_at`;
+      where s.polis_id = ${id} and g.expires_at > now() and l.expires_at > now() order by g.expires_at`;
     const govern = can.govern(role);
     const invites = govern
       ? await sql<{ id: string; expires_at: Date; uses_left: number }[]>`select id, expires_at, uses_left from invites where polis_id = ${id} and expires_at > now() and uses_left > 0`
@@ -177,6 +184,7 @@ export function polisRoutes(app: FastifyInstance, sql: Sql, auth: Auth, hub: Hub
     if (ok) {
       await hub.evict(accountId, id);
       await hub.polisChanged(id, [accountId]);
+      await kickGuests(id);
     }
     return ok ? { ok: true } : bad(reply, 'cannot-remove', 409);
   });
@@ -208,7 +216,10 @@ export function polisRoutes(app: FastifyInstance, sql: Sql, auth: Auth, hub: Hub
         return true;
       })
       .catch(() => false);
-    if (ok) await hub.polisChanged(id);
+    if (ok) {
+      await hub.polisChanged(id);
+      await kickGuests(id);
+    }
     return ok ? { ok: true } : bad(reply, 'bad-rotation', 409);
   });
 
@@ -336,7 +347,7 @@ export function polisRoutes(app: FastifyInstance, sql: Sql, auth: Auth, hub: Hub
     if (!isUuid(id)) return bad(reply);
     const [l] = await sql<{ polis_id: string }[]>`select s.polis_id from guest_links l join symposia s on s.id = l.symposion_id where l.id = ${id}`;
     if (!l || !(await archonOf(l.polis_id, req.accountId))) return bad(reply, 'forbidden', 403);
-    const guests = await sql<{ id: string }[]>`select id from guest_sessions where link_id = ${id}`;
+    const guests = await sql<{ id: string }[]>`select id from guest_sessions where link_id = ${id} and expires_at > now()`;
     await sql.begin(async (tx) => {
       await tx`delete from guest_links where id = ${id}`;
       if (guests.length) await tx`update polis set rotation_needed = true where id = ${l.polis_id}`;

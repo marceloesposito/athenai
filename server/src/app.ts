@@ -19,7 +19,7 @@ export async function buildApp(cfg: Config, sql: Sql): Promise<FastifyInstance> 
   const app = Fastify({ logger: { level: 'error' }, bodyLimit: 256 * 1024, trustProxy: true });
   const auth = new Auth(sql);
   const hub = new Hub(sql);
-  // uno stato intero di un Tomos puo' superare il limite delle richieste normali
+  // uno stato intero di un documento puo' superare il limite delle richieste normali
   await app.register(fastifyWebsocket, { options: { maxPayload: MAX_SNAPSHOT + 64 * 1024 } });
 
   app.addHook('onSend', async (_req, reply) => {

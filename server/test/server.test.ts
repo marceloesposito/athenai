@@ -101,7 +101,7 @@ async function newPolis(owner: User, name = MARKER) {
     id,
     meta: seal(k, JSON.stringify({ name }), AD.polisMeta(id), 1),
     sealed: b64(s.crypto_box_seal(k, owner.box.publicKey)),
-    profile: seal(k, JSON.stringify({ name: 'Pericle' }), AD.profile(id, owner.id), 1),
+    profile: seal(k, JSON.stringify({ name: 'Profilo-segreto-Archon' }), AD.profile(id, owner.id), 1),
   }, owner.token);
   expect(r.status).toBe(200);
   return { id, key: k };
@@ -119,7 +119,7 @@ async function accept(user: User, inviteId: string, secret: Uint8Array) {
   const k = open(secret, inv.key, AD.invite(inviteId));
   const r = await call('POST', `/v1/invites/${inviteId}/accept`, {
     sealed: b64(s.crypto_box_seal(k, user.box.publicKey)),
-    profile: seal(k, JSON.stringify({ name: 'Aspasia' }), AD.profile(inv.polisId, user.id), inv.key.e),
+    profile: seal(k, JSON.stringify({ name: 'Profilo-segreto-Polites' }), AD.profile(inv.polisId, user.id), inv.key.e),
   }, user.token);
   return { status: r.status, key: k };
 }
@@ -390,16 +390,23 @@ describe('ospiti (Xenoi)', () => {
     for (const l of [le, lc, la]) l.ws.terminate();
   });
 
-  it('revoca del link: gli ospiti escono subito e la chiave va ruotata', async () => {
+  it('revoca del link: gli ospiti escono subito, la chiave va ruotata, quello che hanno scritto resta verificabile', async () => {
     const { a, polisId, symposion } = await polisWith(0);
+    const doc = await newDocument(a, symposion.id, symposion.key);
     const link = await guestLink(a, symposion.id, symposion.key, 'edit');
     const g = await joinGuest(link.id);
     const lg = await live(g);
+    lg.send({ t: 'push', ref: 1, documentId: doc.id, stream: 'text', kind: 'update', ...entry(g, symposion.key, doc.id, 'text', 'update', 'ospite') });
+    await lg.next('ack');
     const closed = new Promise<number>((r) => lg.ws.on('close', (code: number) => r(code)));
     expect((await call('DELETE', `/v1/links/${link.id}`, undefined, a.token)).status).toBe(200);
     expect(await closed).toBe(4401);
     expect((await call('GET', '/v1/guest/me', undefined, g.token)).status).toBe(401);
-    expect((await call<PolisDetail>('GET', `/v1/polis/${polisId}`, undefined, a.token)).json.rotationNeeded).toBe(true);
+    const d = (await call<PolisDetail>('GET', `/v1/polis/${polisId}`, undefined, a.token)).json;
+    expect(d.rotationNeeded).toBe(true);
+    expect(d.guests).toEqual([]);
+    const log = (await call<LogEntry[]>('GET', `/v1/documents/${doc.id}/log`, undefined, a.token)).json;
+    expect(log[0].authorPk).toBe(b64(g.sign.publicKey));
   });
 });
 
@@ -515,7 +522,7 @@ describe('il server non vede contenuti in chiaro', () => {
     const tables = await sql<{ tablename: string }[]>`select tablename from pg_tables where schemaname = 'public'`;
     for (const { tablename } of tables) {
       const dump = JSON.stringify(await sql.unsafe(`select * from ${tablename}`));
-      for (const secret of [MARKER, 'Pericle', 'Aspasia', SECRET_TEXT, a.authKey]) expect(dump.includes(secret), `${tablename}: ${secret}`).toBe(false);
+      for (const secret of [MARKER, 'Profilo-segreto-Archon', 'Profilo-segreto-Polites', SECRET_TEXT, a.authKey]) expect(dump.includes(secret), `${tablename}: ${secret}`).toBe(false);
     }
   });
 });
