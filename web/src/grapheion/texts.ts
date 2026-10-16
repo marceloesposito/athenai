@@ -1,29 +1,29 @@
-// Testi dei Tomoi per Heuresis: si scaricano cifrati, si aprono qui e restano solo in memoria (mai
-// nel browser), finche' il Tomos non cambia.
+// Testi dei documenti per la ricerca: si scaricano cifrati, si aprono qui e restano solo in memoria
+// (mai nel browser), finche' il documento non cambia.
 import * as Y from 'yjs';
 import { api, onToken } from '../api/client';
-import { usePolis, oikosKeys } from '../state/polis';
-import { openEntry } from '../crypto/tomos';
-import { docText } from './heuresis';
+import { symposionKeys, people } from '../state/work';
+import { openEntry } from '../crypto/docs';
+import { docText } from './search';
 
 const cache = new Map<string, { version: string; text: string }>();
 
-export async function tomosText(oikosId: string, tomosId: string, version: string): Promise<string> {
-  const hit = cache.get(tomosId);
+export async function documentText(symposionId: string, documentId: string, version: string): Promise<string> {
+  const hit = cache.get(documentId);
   if (hit?.version === version) return hit.text;
-  const { ring } = oikosKeys(oikosId);
-  const members = new Map(usePolis.getState().current?.members.map((m) => [m.accountId, m.signPk]) ?? []);
+  const { ring } = symposionKeys(symposionId);
+  const keys = new Map(people(symposionId).map((p) => [p.id, p.signPk]));
   const doc = new Y.Doc();
-  for (const e of await api.tomosLog(tomosId)) {
+  for (const e of await api.documentLog(documentId)) {
     if (e.stream !== 'text') continue;
-    const data = await openEntry(tomosId, e, ring, (a) => members.get(a));
+    const data = await openEntry(documentId, e, ring, (a) => keys.get(a));
     if (data) Y.applyUpdate(doc, data);
   }
   const text = docText(doc);
   doc.destroy();
-  cache.set(tomosId, { version, text });
+  cache.set(documentId, { version, text });
   return text;
 }
 
-// al blocco o all'uscita: niente testi in chiaro in memoria
+// all'uscita: niente testi in chiaro in memoria
 onToken((t) => t || cache.clear());

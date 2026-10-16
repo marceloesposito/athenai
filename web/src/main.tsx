@@ -1,6 +1,9 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import '@fontsource/gfs-didot/400.css';
+import '@fontsource/libertinus-serif/400.css';
+import '@fontsource/libertinus-serif/400-italic.css';
+import '@fontsource/libertinus-serif/600.css';
+import '@fontsource/libertinus-serif/700.css';
 import '@fontsource/inter/400.css';
 import '@fontsource/inter/500.css';
 import '@fontsource/inter/600.css';

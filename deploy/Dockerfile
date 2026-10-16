@@ -10,9 +10,6 @@ COPY server/package.json server/
 RUN npm ci
 COPY protocol protocol
 COPY web web
-ARG VITE_OIDC_ISSUER=""
-ARG VITE_OIDC_CLIENT_ID=""
-ENV VITE_OIDC_ISSUER=$VITE_OIDC_ISSUER VITE_OIDC_CLIENT_ID=$VITE_OIDC_CLIENT_ID
 RUN npm run build -w web
 
 FROM node:24-alpine

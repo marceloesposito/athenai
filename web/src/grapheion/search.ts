@@ -1,4 +1,4 @@
-// Heuresis: ricerca locale nei Tomoi di un Oikos. I testi si decifrano nel browser e si cercano qui;
+// Ricerca locale nei documenti di un Symposion. I testi si decifrano nel browser e si cercano qui;
 // al server non arriva nessuna parola cercata. Funzioni pure.
 import * as Y from 'yjs';
 import { fuzzyScore } from 'logos/lib/fuzzy';
@@ -71,7 +71,7 @@ export function snippetOf(text: string, query: string, radius = 60): string | nu
   return `${from > 0 ? '…' : ''}${chars.slice(from, to).join('').replace(/\s+/g, ' ').trim()}${to < chars.length ? '…' : ''}`;
 }
 
-/** Tomoi che corrispondono: prima per titolo (approssimato), poi per testo (esatto, senza accenti). */
+/** Documenti che corrispondono: prima per titolo (approssimato), poi per testo (esatto, senza accenti). */
 export function search(query: string, items: Searchable[]): Hit[] {
   if (!query.trim()) return [];
   const scored = items

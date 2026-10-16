@@ -1,100 +1,72 @@
-// Membri della Polis: chi c'e', con che ruolo, l'impronta di ciascuno; l'Archon invita e governa.
+// Membri della Polis: chi c'e' e con che ruolo; l'Archon invita (link per chi ha o crea un account),
+// cambia i ruoli e allontana. Uscire dalla Polis e' possibile a tutti.
 import { useState } from 'react';
-import { Copy, Check, UserMinus } from 'lucide-react';
-import { can, ROLES, type Role } from '@athenai/protocol';
+import { UserMinus } from 'lucide-react';
+import { can, MEMBER_ROLES, type MemberRole } from '@athenai/protocol';
 import { t, useLang } from '../i18n';
-import { usePolis } from '../state/polis';
+import { useWork } from '../state/work';
 import { Modal } from '../components/Modal';
-import { Fingerprint } from '../components/Fingerprint';
-
-type InviteRole = Exclude<Role, 'archon'>;
+import { CopyLink } from '../components/CopyLink';
 
 export function MembersDialog({ onClose }: { onClose: () => void }) {
   useLang();
-  const { current, invite, setRole, remove } = usePolis();
-  const [role, setInviteRole] = useState<InviteRole>('polites');
+  const { polis, invite, setRole, removeMember } = useWork();
   const [link, setLink] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [open, setOpen] = useState<string | null>(null);
-  if (!current) return null;
-  const govern = can.govern(current.role);
+  const [busy, setBusy] = useState(false);
+  if (!polis) return null;
+  const archon = can.govern(polis.role);
   return (
-    <Modal title={t('polis.members')} onClose={onClose}>
-      <ul className="members">
-        {current.members.map((m) => (
-          <li key={m.accountId} className="member">
-            <button className="member__main" onClick={() => setOpen(open === m.accountId ? null : m.accountId)}>
-              <span>
-                {m.name}
-                {m.me && <span className="hint"> · {t('polis.you')}</span>}
-              </span>
-              {govern && !m.me ? (
-                <select className="input input--small" value={m.role} onClick={(e) => e.stopPropagation()} onChange={(e) => void setRole(m.accountId, e.target.value as Role)}>
-                  {ROLES.map((r) => (
-                    <option key={r} value={r}>
-                      {t(`role.${r}`)}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <span className="hint">{t(`role.${m.role}`)}</span>
-              )}
-            </button>
-            {open === m.accountId && (
-              <div className="member__more">
-                <small className="hint">{t('symbolon.fingerprint')}</small>
-                <Fingerprint identity={{ sign: m.signPk, box: m.boxPk }} />
-                {(govern || m.me) && (
-                  <button className="btn btn--danger" onClick={() => void remove(m.accountId)}>
-                    <UserMinus size={14} /> {m.me ? t('polis.leave') : t('polis.remove')}
-                  </button>
-                )}
-              </div>
+    <Modal title={t('members.title')} onClose={onClose}>
+      <ul className="people">
+        {polis.members.map((m) => (
+          <li key={m.id} className="people__row">
+            <span className="avatar avatar--small">{(m.name[0] ?? '?').toUpperCase()}</span>
+            <span className="people__name">
+              {m.name}
+              {m.me && <span className="hint"> · {t('members.you')}</span>}
+            </span>
+            {archon && !m.me ? (
+              <select className="input input--small" value={m.role} onChange={(e) => void setRole(m.id, e.target.value as MemberRole)} aria-label={t('members.role')}>
+                {MEMBER_ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {t(`role.${r}`)}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="hint">{t(`role.${m.role}`)}</span>
+            )}
+            {(archon || m.me) && (
+              <button className="icon-btn" title={m.me ? t('members.leave') : t('members.remove')} aria-label={m.me ? t('members.leave') : t('members.remove')} onClick={() => void removeMember(m.id)}>
+                <UserMinus size={15} />
+              </button>
             )}
           </li>
         ))}
       </ul>
-
-      {govern && (
-        <div className="invite">
-          <h3>{t('invite.title')}</h3>
-          <div className="seg-group" role="radiogroup" aria-label={t('invite.role')}>
-            {(['polites', 'mentore', 'xenos'] as InviteRole[]).map((r) => (
-              <button key={r} role="radio" aria-checked={role === r} className={`seg ${role === r ? 'is-on' : ''}`} onClick={() => setInviteRole(r)}>
-                {t(`role.${r}`)}
-              </button>
-            ))}
-          </div>
-          <p className="hint">{t(`role.${role}.hint`)}</p>
+      {archon && (
+        <section className="dialog-section">
+          <h3>{t('members.invite')}</h3>
+          <p className="hint">{t('members.inviteHint')}</p>
           {link ? (
-            <>
-              <div className="row row--start">
-                <code className="code">{link}</code>
-                <button
-                  className="icon-btn"
-                  aria-label={t('common.copy')}
-                  onClick={async () => {
-                    await navigator.clipboard.writeText(link);
-                    setCopied(true);
-                  }}
-                >
-                  {copied ? <Check size={14} /> : <Copy size={14} />}
-                </button>
-              </div>
-              <p className="hint">{t('invite.linkHint')}</p>
-            </>
+            <CopyLink link={link} />
           ) : (
             <button
               className="btn btn--primary"
+              disabled={busy}
               onClick={async () => {
-                setLink(await invite(role));
-                setCopied(false);
+                setBusy(true);
+                try {
+                  setLink(await invite());
+                } finally {
+                  setBusy(false);
+                }
               }}
             >
-              {t('invite.create')}
+              {t('members.createInvite')}
             </button>
           )}
-        </div>
+        </section>
       )}
     </Modal>
   );

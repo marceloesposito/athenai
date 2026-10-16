@@ -1,5 +1,5 @@
 # Athenai in locale o su un server: Postgres + il server di Athenai (che serve anche l'app web).
-# Zitadel per l'accesso vero: vedi deploy/README.md. Senza Zitadel: ALLOW_TRIAL=true (solo prove).
+# Accesso con email e password gestito dal server stesso: vedi deploy/README.md.
 name: athenai
 
 services:
@@ -24,9 +24,6 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-      args:
-        VITE_OIDC_ISSUER: ${OIDC_ISSUER:-}
-        VITE_OIDC_CLIENT_ID: ${OIDC_AUDIENCE:-}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -35,9 +32,9 @@ services:
       DATABASE_URL: postgres://athenai:${POSTGRES_PASSWORD:-athenai-dev}@postgres:5432/athenai
       PORT: 8787
       STATIC_DIR: /app/web/dist
-      OIDC_ISSUER: ${OIDC_ISSUER:-}
-      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
-      ALLOW_TRIAL: ${ALLOW_TRIAL:-true}
+      # registrazioni aperte (false per un server privato) e segreto per i parametri finti delle email sconosciute
+      ALLOW_SIGNUP: ${ALLOW_SIGNUP:-true}
+      SERVER_SECRET: ${SERVER_SECRET:-cambiami-in-produzione}
     ports:
       - "127.0.0.1:${ATHENAI_PORT:-8787}:8787"
 

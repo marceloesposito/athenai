@@ -1,25 +1,27 @@
-// Accesso al server: chi possiede la chiave Ed25519 dell'account firma una sfida e riceve un token
-// di sessione (12 ore, salvato solo come hash). OIDC (Zitadel) serve una volta sola, a legare le
-// chiavi all'account d'accesso; le chiavi restano la prova d'identita' verso il server.
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+// Sessioni. Un account entra con la chiave d'accesso ricavata dalla password (o, con "resta
+// connesso", firmando una sfida con la propria chiave); un ospite con la sessione aperta dal suo
+// link. I token valgono 12 ore (gli ospiti fino alla scadenza del link) e si salvano solo come hash.
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { Config } from './config.ts';
+import type { GuestMode } from '@athenai/protocol';
 import type { Sql } from './db.ts';
 import { randomToken, sha256 } from './crypto.ts';
 
 const CHALLENGE_TTL = 2 * 60_000;
 const SESSION_HOURS = 12;
+/** tentativi di accesso per email in 15 minuti */
+const MAX_ATTEMPTS = 10;
+
+export type Principal =
+  | { kind: 'account'; id: string }
+  | { kind: 'guest'; id: string; symposionId: string; mode: GuestMode; name: string };
 
 export class Auth {
   private challenges = new Map<string, { signPk: string; expires: number }>();
-  private jwks: ReturnType<typeof createRemoteJWKSet> | null;
-  private cfg: Config;
+  private attempts = new Map<string, { n: number; until: number }>();
   private sql: Sql;
 
-  constructor(cfg: Config, sql: Sql) {
-    this.cfg = cfg;
+  constructor(sql: Sql) {
     this.sql = sql;
-    this.jwks = cfg.oidcIssuer ? createRemoteJWKSet(new URL(`${cfg.oidcIssuer.replace(/\/$/, '')}/oauth/v2/keys`)) : null;
   }
 
   newChallenge(signPk: string): string {
@@ -38,18 +40,18 @@ export class Auth {
     return !!c && c.signPk === signPk && c.expires >= Date.now();
   }
 
-  /** A chi appartiene l'account: dal token OIDC verificato, o dall'id di prova se ammesso. */
-  async binding(idToken: unknown, trialId: unknown): Promise<string | null> {
-    if (typeof idToken === 'string' && this.jwks) {
-      try {
-        const { payload } = await jwtVerify(idToken, this.jwks, { issuer: this.cfg.oidcIssuer, audience: this.cfg.oidcAudience });
-        return payload.sub ? `oidc:${payload.sub}` : null;
-      } catch {
-        return null;
-      }
-    }
-    if (this.cfg.allowTrial && typeof trialId === 'string' && /^trial-[0-9a-f-]{36}$/.test(trialId)) return `trial:${trialId}`;
-    return null;
+  /** Limite ai tentativi falliti per email: false se bisogna aspettare. */
+  allowAttempt(key: string): boolean {
+    const a = this.attempts.get(key);
+    return !a || a.until < Date.now() || a.n < MAX_ATTEMPTS;
+  }
+
+  failedAttempt(key: string) {
+    const now = Date.now();
+    const a = this.attempts.get(key);
+    if (!a || a.until < now) this.attempts.set(key, { n: 1, until: now + 15 * 60_000 });
+    else a.n++;
+    if (this.attempts.size > 100_000) this.attempts.clear();
   }
 
   async newSession(accountId: string): Promise<{ token: string; expiresAt: string }> {
@@ -60,23 +62,43 @@ export class Auth {
     return { token, expiresAt: expires.toISOString() };
   }
 
-  /** l'account di un token di sessione valido, o null */
-  async accountFor(token: string): Promise<string | null> {
-    const [row] = await this.sql<{ account_id: string }[]>`select account_id from sessions where token_hash = ${sha256(token)} and expires_at > now()`;
-    return row?.account_id ?? null;
+  /** Chi c'e' dietro un token: un account o un ospite. */
+  async principalFor(token: string): Promise<Principal | null> {
+    const h = sha256(token);
+    const [acc] = await this.sql<{ account_id: string }[]>`select account_id from sessions where token_hash = ${h} and expires_at > now()`;
+    if (acc) return { kind: 'account', id: acc.account_id };
+    const [g] = await this.sql<{ id: string; symposion_id: string; mode: GuestMode; name: string }[]>`
+      select g.id, g.symposion_id, l.mode, g.name from guest_sessions g join guest_links l on l.id = g.link_id
+      where g.token_hash = ${h} and g.expires_at > now() and l.expires_at > now()`;
+    return g ? { kind: 'guest', id: g.id, symposionId: g.symposion_id, mode: g.mode, name: g.name } : null;
   }
 
-  /** preHandler: richiede una sessione valida e mette l'account nella richiesta */
+  private token(req: FastifyRequest): string | null {
+    return /^Bearer ([A-Za-z0-9_-]{20,})$/.exec(req.headers.authorization ?? '')?.[1] ?? null;
+  }
+
+  /** preHandler: solo account (non ospiti); mette l'account nella richiesta */
   require = async (req: FastifyRequest, reply: FastifyReply) => {
-    const m = /^Bearer ([A-Za-z0-9_-]{20,})$/.exec(req.headers.authorization ?? '');
-    const account = m ? await this.accountFor(m[1]) : null;
-    if (!account) return reply.code(401).send({ error: 'unauthorized' });
-    req.accountId = account;
+    const t = this.token(req);
+    const p = t ? await this.principalFor(t) : null;
+    if (!p || p.kind !== 'account') return reply.code(401).send({ error: 'unauthorized' });
+    req.accountId = p.id;
+    req.principal = p;
+  };
+
+  /** preHandler: account o ospite */
+  requireAny = async (req: FastifyRequest, reply: FastifyReply) => {
+    const t = this.token(req);
+    const p = t ? await this.principalFor(t) : null;
+    if (!p) return reply.code(401).send({ error: 'unauthorized' });
+    if (p.kind === 'account') req.accountId = p.id;
+    req.principal = p;
   };
 }
 
 declare module 'fastify' {
   interface FastifyRequest {
     accountId: string;
+    principal: Principal;
   }
 }

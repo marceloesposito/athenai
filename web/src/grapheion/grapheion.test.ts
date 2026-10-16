@@ -4,12 +4,12 @@ import type { LogEntry, SealedBox } from '@athenai/protocol';
 import { sodium, toB64 } from '../crypto/sodium';
 import { identityFromMaster, type Identity } from '../crypto/keys';
 import { newKey } from '../crypto/polis';
-import { sealEntry, openEntry, sealNotice, openNotice, type EpochKeys } from '../crypto/tomos';
+import { sealEntry, openEntry, sealNotice, openNotice, type EpochKeys } from '../crypto/docs';
 import { addScholion, addReply, listThreads, setResolved, removeScholion, findMentions, mentionQuery, completeMention, excerpt } from './scholia';
-import { docText, search, snippetOf, TEXT_FIELD } from './heuresis';
-import { TomosSync, type Transport, type TomosHandlers, type PushRequest } from './sync';
+import { docText, search, snippetOf, TEXT_FIELD } from './search';
+import { DocSync, type Transport, type DocHandlers, type PushRequest } from './sync';
 
-const TOMOS = '7f9c2b1e-3a4d-4e5f-8a6b-1c2d3e4f5a6b';
+const DOC = '7f9c2b1e-3a4d-4e5f-8a6b-1c2d3e4f5a6b';
 let alice: Identity;
 let bob: Identity;
 let pk: Record<string, string>;
@@ -35,7 +35,7 @@ class FakeServer {
   log: LogEntry[] = [];
   seq = 0;
   epoch = 1;
-  subs = new Set<{ who: string; h: TomosHandlers }>();
+  subs = new Set<{ who: string; h: DocHandlers }>();
   transport(who: string): Transport {
     return {
       subscribe: (_id, h) => {
@@ -61,8 +61,8 @@ class FakeServer {
 
 function client(server: FakeServer, who: 'alice' | 'bob', keys: { epoch: number; ring: EpochKeys }, opts: Partial<{ canText: boolean; refreshKeys: () => Promise<void> }> = {}) {
   const id = who === 'alice' ? alice : bob;
-  return new TomosSync({
-    tomosId: TOMOS,
+  return new DocSync({
+    documentId: DOC,
     accountId: who,
     signSk: id.sign.privateKey,
     keys: () => keys,
@@ -88,20 +88,20 @@ describe('voci cifrate e firmate', () => {
     const key = await newKey();
     const ring: EpochKeys = new Map([[1, key]]);
     const data = new TextEncoder().encode('ciao');
-    const { box, sig } = await sealEntry(key, 1, TOMOS, 'text', 'update', 'alice', data, alice.sign.privateKey);
+    const { box, sig } = await sealEntry(key, 1, DOC, 'text', 'update', 'alice', data, alice.sign.privateKey);
     const e: LogEntry = { seq: 1, stream: 'text', kind: 'update', author: 'alice', authorPk: '', box, sig };
-    expect(await openEntry(TOMOS, e, ring, (a) => pk[a])).toEqual(data);
+    expect(await openEntry(DOC, e, ring, (a) => pk[a])).toEqual(data);
     // bob si spaccia per alice / alice attribuita a bob / un altro flusso / chiave diversa
-    const forged = await sealEntry(key, 1, TOMOS, 'text', 'update', 'alice', data, bob.sign.privateKey);
-    expect(await openEntry(TOMOS, { ...e, ...forged }, ring, (a) => pk[a])).toBeNull();
-    expect(await openEntry(TOMOS, { ...e, author: 'bob' }, ring, (a) => pk[a])).toBeNull();
-    expect(await openEntry(TOMOS, { ...e, stream: 'scholia' }, ring, (a) => pk[a])).toBeNull();
-    expect(await openEntry(TOMOS, e, new Map([[1, await newKey()]]), (a) => pk[a])).toBeNull();
+    const forged = await sealEntry(key, 1, DOC, 'text', 'update', 'alice', data, bob.sign.privateKey);
+    expect(await openEntry(DOC, { ...e, ...forged }, ring, (a) => pk[a])).toBeNull();
+    expect(await openEntry(DOC, { ...e, author: 'bob' }, ring, (a) => pk[a])).toBeNull();
+    expect(await openEntry(DOC, { ...e, stream: 'scholia' }, ring, (a) => pk[a])).toBeNull();
+    expect(await openEntry(DOC, e, new Map([[1, await newKey()]]), (a) => pk[a])).toBeNull();
   });
 
-  it('Keryx: solo il destinatario apre, e la firma del mittente deve tornare', async () => {
+  it('notifiche: solo il destinatario apre, e la firma del mittente deve tornare', async () => {
     const s = await sodium();
-    const notice = { kind: 'mention' as const, polisId: 'p', oikosId: 'o', tomosId: TOMOS, from: 'alice', excerpt: 'ciao @Bob', at: '2026-10-12T10:00:00Z' };
+    const notice = { kind: 'mention' as const, polisId: 'p', symposionId: 'o', documentId: DOC, from: 'alice', excerpt: 'ciao @Bob', at: '2026-10-12T10:00:00Z' };
     const sealed = await sealNotice(notice, { accountId: 'bob', boxPk: toB64(s, bob.box.publicKey) }, alice.sign.privateKey);
     expect(await openNotice(sealed, bob, 'bob', (_p, a) => pk[a])).toEqual(notice);
     expect(await openNotice(sealed, alice, 'alice', (_p, a) => pk[a])).toBeNull();
@@ -146,7 +146,7 @@ describe('Scholia', () => {
   });
 });
 
-describe('Heuresis', () => {
+describe('ricerca', () => {
   it('testo dei blocchi, passi senza accenti, titoli approssimati', () => {
     const doc = new Y.Doc();
     write(doc, 'Primo paragrafo.');
@@ -205,7 +205,7 @@ describe('sincronizzazione cifrata', () => {
     });
     await a.loaded;
     // bob scrive con la firma di bob ma dichiarandosi alice: ignorata
-    const forged = await sealEntry(k1, 1, TOMOS, 'text', 'update', 'alice', Y.encodeStateAsUpdate(new Y.Doc()), bob.sign.privateKey);
+    const forged = await sealEntry(k1, 1, DOC, 'text', 'update', 'alice', Y.encodeStateAsUpdate(new Y.Doc()), bob.sign.privateKey);
     for (const s of server.subs) s.h.entry({ seq: 99, stream: 'text', kind: 'update', author: 'alice', authorPk: '', ...forged });
     await until(() => a.rejected === 1);
     // il server passa all'epoca 2: la modifica torna in coda, le chiavi si ricaricano, poi parte
@@ -220,7 +220,7 @@ describe('sincronizzazione cifrata', () => {
     b.destroy();
   });
 
-  it('Xenos e Mentore: niente modifiche al testo in uscita', async () => {
+  it("ospite che puo' solo commentare: niente modifiche al testo in uscita", async () => {
     const server = new FakeServer();
     const keys = { epoch: 1, ring: new Map([[1, await newKey()]]) as EpochKeys };
     const m = client(server, 'bob', keys, { canText: false });

@@ -7,7 +7,7 @@ const sql = connect(cfg.databaseUrl);
 await migrate(sql);
 const app = await buildApp(cfg, sql);
 await app.listen({ port: cfg.port, host: '0.0.0.0' });
-console.log(`Athenai server su :${cfg.port}${cfg.allowTrial ? ' (modalita\' di prova: account senza OIDC ammessi)' : ''}`);
+console.log(`Athenai server su :${cfg.port}${cfg.allowSignup ? '' : ' (registrazioni chiuse)'}`);
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const)
   process.on(sig, async () => {

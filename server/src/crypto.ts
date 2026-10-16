@@ -1,6 +1,6 @@
 // Il server verifica solo firme Ed25519 (libsodium) e calcola hash: non ha chiavi segrete degli utenti.
 import _sodium from 'libsodium-wrappers-sumo';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 let ready: Promise<typeof _sodium> | null = null;
 const sodium = () => (ready ??= _sodium.ready.then(() => _sodium));
@@ -21,4 +21,16 @@ export function randomToken(bytes = 32): string {
 
 export function sha256(text: string): string {
   return createHash('sha256').update(text).digest('hex');
+}
+
+/** HMAC-SHA256 in base64url (parametri finti stabili per le email sconosciute). */
+export function hmac(secret: string, text: string, bytes = 32): string {
+  return createHmac('sha256', secret).update(text).digest().subarray(0, bytes).toString('base64url');
+}
+
+/** Confronto a tempo costante di due hash esadecimali della stessa lunghezza. */
+export function sameHash(a: string, b: string): boolean {
+  const x = Buffer.from(a, 'hex');
+  const y = Buffer.from(b, 'hex');
+  return x.length === y.length && x.length > 0 && timingSafeEqual(x, y);
 }

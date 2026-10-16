@@ -1,12 +1,12 @@
-// Keryx, l'araldo: la campanella con le notifiche. Si vede solo quando c'e' qualcosa da dire.
+// Notifiche: la campanella si vede solo quando c'e' qualcosa.
 import { useEffect, useRef, useState } from 'react';
 import { Bell } from 'lucide-react';
 import { t, useLang } from '../i18n';
-import { useKeryx } from '../state/keryx';
+import { useNotices } from '../state/notices';
 
-export function KeryxBell() {
+export function NotificationsBell() {
   useLang();
-  const { items, open, dismissAll } = useKeryx();
+  const { items, open, dismissAll } = useNotices();
   const [shown, setShown] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -16,29 +16,30 @@ export function KeryxBell() {
     return () => window.removeEventListener('mousedown', close);
   }, [shown]);
   if (!items.length) return null;
+  const label = t('notices.title', { n: items.length });
   return (
-    <div className="keryx" ref={ref}>
-      <button className="icon-btn keryx__bell" aria-haspopup="menu" aria-expanded={shown} aria-label={t('keryx.title', { n: items.length })} title={t('keryx.title', { n: items.length })} onClick={() => setShown(!shown)}>
+    <div className="dropdown" ref={ref}>
+      <button className="icon-btn bell" aria-haspopup="menu" aria-expanded={shown} aria-label={label} title={label} onClick={() => setShown(!shown)}>
         <Bell size={16} />
-        <span className="keryx__count">{items.length}</span>
+        <span className="badge-count">{items.length}</span>
       </button>
       {shown && (
-        <div className="menu keryx__menu" role="menu">
+        <div className="menu menu--right notices" role="menu">
           {items.map((it) => (
             <button
               key={it.id}
               role="menuitem"
-              className="menu__item keryx__item"
+              className="menu__item notices__item"
               onClick={() => {
                 setShown(false);
                 void open(it.id);
               }}
             >
-              <strong>{t('keryx.mention', { name: it.from })}</strong>
+              <strong>{t('notices.mention', { name: it.from })}</strong>
               <span className="hint">
-                {it.polis} · {it.tomos || t('tomos.untitled')}
+                {it.polis} · {it.document || t('doc.untitled')}
               </span>
-              <span className="keryx__excerpt">{it.notice.excerpt}</span>
+              <span className="notices__excerpt">{it.notice.excerpt}</span>
             </button>
           ))}
           <button
@@ -49,7 +50,7 @@ export function KeryxBell() {
               void dismissAll();
             }}
           >
-            {t('keryx.clear')}
+            {t('notices.clear')}
           </button>
         </div>
       )}

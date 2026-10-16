@@ -1,105 +1,113 @@
-/* Identita' di Athenai: la ceramica attica a figure rosse (terracotta e nero), il marmo del
-   Partenone, il blu dell'Egeo e l'ulivo di Atena. Colori solo da qui (tema chiaro, scuro, di sistema). */
+/* Token di stile, come in Alexandria: carta e inchiostro, con un accento blu sobrio. Mai colori
+   scritti a mano fuori da qui (tema chiaro, scuro, di sistema). */
 :root {
-  --marble: #f6f2ea;
-  --paper: #fffdf8;
-  --chrome: #efe8dc;
-  --chrome-2: #e4dacb;
-  --line: #d8cbb7;
-  --ink: #1d1a17;
-  --ink-2: #4a433b;
-  --muted: #7a6f62;
-  --terracotta: #b5532c;
-  --terracotta-ink: #8f3e1f;
-  --aegean: #1f5a8a;
-  --olive: #5e6b2f;
-  --ochre: #c08a2e;
-  --accent: var(--terracotta);
-  /* la ceramica: nero e terracotta fissi, uguali nei due temi (il logo) */
-  --vase-black: #1d1a17;
-  --vase-red: #c2623a;
-  --accent-ink: #fffdf8;
-  --ok: #4f6f2a;
-  --bad: #a83a2c;
-  --focus: #1f5a8a;
-  /* Symposion: i colori delle persone presenti in un Tomos (cursori e avatar) */
-  --presence-1: #1f5a8a;
-  --presence-2: #b5532c;
-  --presence-3: #5e6b2f;
-  --presence-4: #8a4f9e;
-  --presence-5: #c08a2e;
-  --presence-6: #2e7d74;
-  /* il passo commentato da uno Scholion */
-  --scholion: rgb(192 138 46 / 0.22);
-  --scholion-active: rgb(192 138 46 / 0.45);
-  --shadow: 0 1px 2px rgb(40 25 10 / 0.08), 0 6px 20px rgb(40 25 10 / 0.08);
-  --radius: 10px;
-  --radius-small: 6px;
-  --font-display: 'GFS Didot', 'Didot', 'Bodoni 72', Georgia, serif;
-  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --fs-ui: 14px;
-  --fs-ui-small: 12px;
   color-scheme: light;
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-text: 'Libertinus Serif', 'Georgia', serif;
+
+  --fs-ui: 13px;
+  --fs-ui-small: 11.5px;
+  --fs-ui-large: 15px;
+  --fs-title: 20px;
+
+  --desk: #ece8df;
+  --chrome: #f6f3ec;
+  --chrome-2: #efebe2;
+  --paper: #fffdf8;
+  --ink: #1f1c17;
+  --ink-2: #4a453c;
+  --muted: #7a7366;
+  --line: #ddd6c8;
+  --line-strong: #c4bba9;
+  --accent: #2e5d87;
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  --accent-ink: #fffdf8;
+  --select: color-mix(in srgb, #3a6ea5 22%, transparent);
+  --mark: #f3dc8a;
+  --mark-soft: color-mix(in srgb, #e6b84a 30%, transparent);
+  --ok: #3f7d4e;
+  --warn: #a8741a;
+  --bad: #a83a2c;
+  --info: #3a6ea5;
+  --shadow: 0 1px 2px rgb(40 30 10 / 0.08), 0 4px 16px rgb(40 30 10 / 0.08);
+  --shadow-strong: 0 8px 40px rgb(40 30 10 / 0.22);
+  --radius: 6px;
+  --radius-small: 4px;
+
+  /* serie: sezioni e persone (sempre con un nome accanto) */
+  --series-1: #a8741a;
+  --series-2: #2e5d87;
+  --series-3: #3f7d4e;
+  --series-4: #8e4a8a;
+  --series-5: #8a4f2a;
+  --series-6: #2f8a87;
+  --series-7: #a83a2c;
+  --series-8: #5b5f6b;
 }
 
 :root[data-theme='dark'] {
-  --marble: #141210;
-  --paper: #1c1916;
-  --chrome: #24201c;
-  --chrome-2: #2e2924;
-  --line: #3b342d;
-  --ink: #f1ebe2;
-  --ink-2: #cfc6b9;
-  --muted: #9d9284;
-  --terracotta: #d9744a;
-  --terracotta-ink: #f0a07c;
-  --aegean: #6fa3d1;
-  --olive: #a3b067;
-  --ochre: #d9a650;
-  --accent-ink: #1c1916;
-  --ok: #8fb35a;
-  --bad: #e07a6b;
-  --focus: #6fa3d1;
-  --presence-1: #6fa3d1;
-  --presence-2: #d9744a;
-  --presence-3: #a3b067;
-  --presence-4: #c08ad4;
-  --presence-5: #d9a650;
-  --presence-6: #5fb3a8;
-  --scholion: rgb(217 166 80 / 0.2);
-  --scholion-active: rgb(217 166 80 / 0.42);
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 6px 20px rgb(0 0 0 / 0.35);
   color-scheme: dark;
+  --desk: #151412;
+  --chrome: #1d1c19;
+  --chrome-2: #242320;
+  --paper: #22201c;
+  --ink: #e9e4d8;
+  --ink-2: #c9c2b3;
+  --muted: #958d7d;
+  --line: #36332d;
+  --line-strong: #4a463e;
+  --accent: #8fb4dc;
+  --accent-ink: #1d1c19;
+  --select: color-mix(in srgb, #6f9fd3 30%, transparent);
+  --mark: #6b5a1d;
+  --mark-soft: color-mix(in srgb, #d7a64e 28%, transparent);
+  --ok: #7cb68a;
+  --warn: #d7a64e;
+  --bad: #e07a6b;
+  --info: #7fa9d8;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.3);
+  --shadow-strong: 0 8px 40px rgb(0 0 0 / 0.5);
+  --series-1: #d7a64e;
+  --series-2: #8fb4dc;
+  --series-3: #7cb68a;
+  --series-4: #c58ac1;
+  --series-5: #d39563;
+  --series-6: #6cc2be;
+  --series-7: #e07a6b;
+  --series-8: #a3a7b3;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --marble: #141210;
-    --paper: #1c1916;
-    --chrome: #24201c;
-    --chrome-2: #2e2924;
-    --line: #3b342d;
-    --ink: #f1ebe2;
-    --ink-2: #cfc6b9;
-    --muted: #9d9284;
-    --terracotta: #d9744a;
-    --terracotta-ink: #f0a07c;
-    --aegean: #6fa3d1;
-    --olive: #a3b067;
-    --ochre: #d9a650;
-    --accent-ink: #1c1916;
-    --ok: #8fb35a;
-    --bad: #e07a6b;
-    --focus: #6fa3d1;
-    --presence-1: #6fa3d1;
-    --presence-2: #d9744a;
-    --presence-3: #a3b067;
-    --presence-4: #c08ad4;
-    --presence-5: #d9a650;
-    --presence-6: #5fb3a8;
-    --scholion: rgb(217 166 80 / 0.2);
-    --scholion-active: rgb(217 166 80 / 0.42);
-    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 6px 20px rgb(0 0 0 / 0.35);
+  :root[data-theme='system'],
+  :root:not([data-theme]) {
     color-scheme: dark;
+    --desk: #151412;
+    --chrome: #1d1c19;
+    --chrome-2: #242320;
+    --paper: #22201c;
+    --ink: #e9e4d8;
+    --ink-2: #c9c2b3;
+    --muted: #958d7d;
+    --line: #36332d;
+    --line-strong: #4a463e;
+    --accent: #8fb4dc;
+    --accent-ink: #1d1c19;
+    --select: color-mix(in srgb, #6f9fd3 30%, transparent);
+    --mark: #6b5a1d;
+    --mark-soft: color-mix(in srgb, #d7a64e 28%, transparent);
+    --ok: #7cb68a;
+    --warn: #d7a64e;
+    --bad: #e07a6b;
+    --info: #7fa9d8;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.3);
+    --shadow-strong: 0 8px 40px rgb(0 0 0 / 0.5);
+    --series-1: #d7a64e;
+    --series-2: #8fb4dc;
+    --series-3: #7cb68a;
+    --series-4: #c58ac1;
+    --series-5: #d39563;
+    --series-6: #6cc2be;
+    --series-7: #e07a6b;
+    --series-8: #a3a7b3;
   }
 }

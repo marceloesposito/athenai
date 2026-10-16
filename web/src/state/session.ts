@@ -1,235 +1,328 @@
-// Sessione: chi e' entrato (accesso) e se le sue chiavi sono sbloccate (Symbolon).
-//   signedOut -> (Propylaia) -> needsSymbolon -> protect -> ready (Akropolis)
-//                               locked -> ready
-// Di default nulla resta nel browser: l'identita' pubblica e la chiave avvolta dalla passkey stanno
-// sul server; le chiavi private solo in memoria, cancellate da "Blocca". "Ricorda su questo
-// browser" e' l'unica eccezione, su scelta esplicita.
-import { useMemo } from 'react';
+// Sessione: chi sta usando Athenai in questa scheda. Un account (email e password; la password
+// sblocca la chiave principale qui nel browser) oppure un ospite entrato da un link privato. Con
+// "resta connesso" la chiave principale resta avvolta da una chiave non esportabile del browser.
 import { create } from 'zustand';
-import { authMessage, registerMessage, AD, type LookupResponse } from '@athenai/protocol';
-import { auth, type AuthUser, type Binding } from '../auth';
+import {
+  AD,
+  registerMessage,
+  authMessage,
+  normalizeEmail,
+  parseGuestLink,
+  parseInviteLink,
+  type AccountView,
+  type SessionResponse,
+  type GuestMode,
+  type GuestContext,
+} from '@athenai/protocol';
 import { api, setToken, ApiError } from '../api/client';
-import { deviceStore } from '../crypto/keystore';
-import { masterFromEntropy, identityFromMaster, publicIdentity, wrapMaster, unwrapMaster, wrappingKeyFrom, prefsKey, wipe, type Identity, type PublicIdentity } from '../crypto/keys';
-import { phraseEntropy } from '../crypto/recovery';
-import { createPasskey, passkeySecret } from '../crypto/passkey';
+import { live } from '../live/socket';
+import { sodium, toB64, fromB64 } from '../crypto/sodium';
+import { identityFromMaster, ephemeralIdentity, publicIdentity, prefsKey, wipe, type Identity } from '../crypto/keys';
+import { newKdf, passwordKeys, newMaster, wrapMasterWith, unwrapMasterWith, newRecoveryCode, recoveryKeys } from '../crypto/password';
 import { newDeviceKey, wrapWithDevice, unwrapWithDevice } from '../crypto/deviceKey';
-import { sodium, toB64 } from '../crypto/sodium';
-import { sealJson, openJson } from '../crypto/polis';
-import { usePrefs, type UserPrefs, type UnlockMode } from './prefs';
+import { deviceStore } from '../crypto/keystore';
+import { openGuestLink, sealJson, openJson } from '../crypto/polis';
+import { usePrefs, type UserPrefs } from './prefs';
+import { getLang } from '../i18n';
 
-export type Phase = 'loading' | 'offline' | 'signedOut' | 'needsSymbolon' | 'protect' | 'locked' | 'ready';
-export type Protection = UnlockMode;
+export type Phase = 'loading' | 'signedOut' | 'ready' | 'guestInvite' | 'guest';
+
+export interface GuestState {
+  guestId: string;
+  name: string;
+  mode: GuestMode;
+  linkId: string;
+  polisId: string;
+  symposionId: string;
+  symposionName: string;
+  /** chiavi del Symposion per epoca (dal frammento del link) */
+  keys: Map<number, Uint8Array>;
+  people: GuestContext['people'];
+}
+
+/** link per ospiti aperto ma non ancora usato: nome del Symposion da mostrare */
+export interface GuestInvite {
+  linkId: string;
+  secret: string;
+  symposionName: string;
+  mode: GuestMode;
+}
+
+type AuthResult = 'ok' | 'bad' | 'taken' | 'wait' | 'offline' | 'closed';
 
 interface SessionState {
   phase: Phase;
-  user: AuthUser | null;
-  /** quello che il server sa dell'account (null = account nuovo) */
-  account: LookupResponse | null;
+  account: AccountView | null;
   identity: Identity | null;
-  /** questo browser ricorda lo sblocco (scelta esplicita) */
-  remembered: boolean;
-  error: string | null;
+  guest: GuestState | null;
+  guestInvite: GuestInvite | null;
+  /** invito nella Polis arrivato dal link, da accettare appena dentro */
+  pendingInvite: { inviteId: string; secret: string } | null;
   init(): Promise<void>;
-  signIn(): Promise<void>;
+  signUp(name: string, email: string, password: string, remember: boolean): Promise<AuthResult>;
+  signIn(email: string, password: string, remember: boolean): Promise<AuthResult>;
+  recover(email: string, code: string, newPassword: string): Promise<AuthResult>;
+  changePassword(newPassword: string): Promise<boolean>;
+  createRecoveryCode(): Promise<string | null>;
+  removeRecovery(): Promise<void>;
   signOut(): Promise<void>;
-  adoptMaster(master: Uint8Array): Promise<'ok' | 'other' | 'offline'>;
-  adoptPhrase(phrase: string): Promise<'ok' | 'bad' | 'other' | 'offline'>;
-  protect(kind: Protection): Promise<'ok' | 'noPrf' | 'failed'>;
-  unlockWithPasskey(): Promise<boolean>;
-  lock(): Promise<void>;
-  forgetDevice(): Promise<void>;
-  publicIdentity(): PublicIdentity | null;
+  joinAsGuest(): Promise<'ok' | 'invalid'>;
+  clearPendingInvite(): void;
 }
 
-const same = (a: LookupResponse, b: PublicIdentity) => a.signPk === b.sign && a.boxPk === b.box;
+const GUEST_KEY = 'athenai:guest';
 
-async function binding(): Promise<Binding> {
-  const b = await auth.binding();
-  if (!b) throw new ApiError(401, 'signed-out');
-  return b;
-}
-
-/** Registra (se serve) le chiavi pubbliche e apre la sessione firmando una sfida. */
-async function connect(id: Identity, account: LookupResponse | null, user: AuthUser): Promise<LookupResponse> {
-  const s = await sodium();
-  const pub = await publicIdentity(id);
-  const b = await binding();
-  if (!account) {
-    // il server lega le chiavi all'account d'accesso: si firma lo stesso testo che calcolera' lui
-    const bound = 'idToken' in b ? `oidc:${user.id}` : `trial:${b.trialId}`;
-    const signature = toB64(s, s.crypto_sign_detached(registerMessage(pub.sign, pub.box, bound), id.sign.privateKey));
-    await api.register({ ...b, signPk: pub.sign, boxPk: pub.box, signature });
+function errorResult(e: unknown): AuthResult {
+  if (e instanceof ApiError) {
+    if (e.status === 0) return 'offline';
+    if (e.status === 409) return 'taken';
+    if (e.status === 429) return 'wait';
+    if (e.code === 'signup-closed') return 'closed';
   }
-  const { challenge } = await api.challenge(pub.sign);
-  const sess = await api.session(pub.sign, challenge, toB64(s, s.crypto_sign_detached(authMessage(challenge), id.sign.privateKey)));
-  setToken(sess.token);
-  return (await api.lookup(b)) ?? { accountId: sess.accountId, signPk: pub.sign, boxPk: pub.box, passkeys: [], prefs: null };
+  return 'bad';
 }
 
 /** Preferenze cifrate: lettura dal server e funzione per salvarle. */
-async function loadPrefs(id: Identity, account: LookupResponse) {
+async function loadPrefs(id: Identity, account: AccountView, fallbackName = '') {
   const key = await prefsKey(id.master);
   const p = await openJson<UserPrefs>(key, account.prefs, AD.prefs(account.accountId));
   const prefs = usePrefs.getState();
-  if (p) prefs.apply(p);
+  prefs.apply({ name: fallbackName, ...p });
   usePrefs.setState({
     saver: async (next) => {
       await api.putPrefs(await sealJson(key, next, AD.prefs(account.accountId), 1));
     },
   });
-  return p;
 }
 
-/** Identita' pubblica dell'account (stabile fra un render e l'altro). */
-export function usePublicIdentity(): PublicIdentity | null {
-  const signPk = useSession((s) => s.account?.signPk);
-  const boxPk = useSession((s) => s.account?.boxPk);
-  return useMemo(() => (signPk && boxPk ? { sign: signPk, box: boxPk } : null), [signPk, boxPk]);
+/** Dal percorso dell'indirizzo: un link per ospiti o un invito nella Polis. Poi l'URL si pulisce. */
+function linkFromUrl() {
+  const here = location.origin + location.pathname + location.hash;
+  const guest = parseGuestLink(here);
+  const invite = parseInviteLink(here);
+  if (guest || invite) history.replaceState(null, '', '/');
+  return { guest, invite };
 }
 
 export const useSession = create<SessionState>((set, get) => {
-  /** dopo lo sblocco: sessione sul server, preferenze, e la fase giusta */
-  async function finish(identity: Identity): Promise<'ok' | 'other' | 'offline'> {
-    const { account } = get();
+  /** Dentro con un account: identita' controllata, token, preferenze, "resta connesso". */
+  async function enter(sess: SessionResponse, master: Uint8Array, remember: boolean, name?: string): Promise<AuthResult> {
+    const identity = await identityFromMaster(master);
     const pub = await publicIdentity(identity);
-    if (account && !same(account, pub)) {
-      await wipe(identity.master);
-      return 'other';
+    if (pub.sign !== sess.account.signPk || pub.box !== sess.account.boxPk) {
+      await wipe(master);
+      return 'bad';
     }
+    setToken(sess.token);
+    await loadPrefs(identity, sess.account, name);
+    if (name) await usePrefs.getState().update({ name });
+    if (remember) {
+      const key = await newDeviceKey();
+      await deviceStore.save({ v: 3, accountId: sess.account.accountId, email: sess.account.email, signPk: sess.account.signPk, device: await wrapWithDevice(master, key) }, key);
+    } else await deviceStore.forget();
+    set({ account: sess.account, identity, phase: 'ready', guest: null, guestInvite: null });
+    return 'ok';
+  }
+
+  async function guestResume(linkId: string): Promise<boolean> {
     try {
-      const acc = await connect(identity, account, get().user!);
-      const prefs = await loadPrefs(identity, acc);
-      const chosen = prefs?.unlock ?? (acc.passkeys.length ? 'passkey' : get().remembered ? 'device' : undefined);
-      set({ account: acc, identity, phase: chosen ? 'ready' : 'protect', error: null });
-      return 'ok';
-    } catch (e) {
-      await wipe(identity.master);
-      set({ error: String((e as Error).message) });
-      return e instanceof ApiError && e.status === 0 ? 'offline' : 'other';
+      const raw = sessionStorage.getItem(GUEST_KEY);
+      if (!raw) return false;
+      const g = JSON.parse(raw) as { linkId: string; secret: string; token: string; master: string };
+      if (g.linkId !== linkId && linkId) return false;
+      return await guestEnter(g.linkId, g.secret, g.token, g.master);
+    } catch {
+      return false;
     }
   }
 
-  async function afterSignIn(user: AuthUser | null) {
-    if (!user) return set({ phase: 'signedOut', user: null, account: null, identity: null });
-    let account: LookupResponse | null;
-    try {
-      account = await api.lookup(await binding());
-    } catch {
-      return set({ phase: 'offline', user });
+  async function guestEnter(linkId: string, secret: string, token: string, masterB64: string): Promise<boolean> {
+    const s = await sodium();
+    const link = await api.guestLink(linkId).catch(() => null);
+    if (!link) return false;
+    const opened = await openGuestLink(linkId, secret, link.key, link.meta);
+    if (!opened) return false;
+    setToken(token);
+    const ctx = await api.guestMe().catch(() => null);
+    if (!ctx) {
+      setToken(null);
+      return false;
     }
-    const local = await deviceStore.load(user.id);
-    set({ user, account, remembered: !!local, identity: null });
-    if (!account) return set({ phase: 'needsSymbolon' });
-    if (local) {
-      const master = await unwrapWithDevice(local.record.device, local.key);
-      if (master && (await finish(await identityFromMaster(master))) === 'ok') return;
-    }
-    set({ phase: 'locked' });
+    const identity = await identityFromMaster(fromB64(s, masterB64));
+    set({
+      phase: 'guest',
+      identity,
+      account: null,
+      guestInvite: null,
+      guest: { guestId: ctx.guestId, name: ctx.name, mode: ctx.mode, linkId, polisId: ctx.polisId, symposionId: ctx.symposionId, symposionName: opened.name, keys: opened.keys, people: ctx.people },
+    });
+    return true;
   }
 
   return {
     phase: 'loading',
-    user: null,
     account: null,
     identity: null,
-    remembered: false,
-    error: null,
+    guest: null,
+    guestInvite: null,
+    pendingInvite: null,
 
     async init() {
+      const { guest, invite } = linkFromUrl();
+      if (invite) set({ pendingInvite: invite });
+      // un link per ospiti: si riprende la sessione della scheda, o si propone di entrare
+      if (guest) {
+        if (await guestResume(guest.linkId)) return;
+        const link = await api.guestLink(guest.linkId).catch(() => null);
+        const opened = link ? await openGuestLink(guest.linkId, guest.secret, link.key, link.meta) : null;
+        if (link && opened) return set({ phase: 'guestInvite', guestInvite: { linkId: guest.linkId, secret: guest.secret, symposionName: opened.name, mode: link.mode } });
+      } else if (await guestResume('')) return;
+      // "resta connesso": la chiave principale avvolta dal browser e una sfida firmata
+      const saved = await deviceStore.load();
+      if (saved) {
+        const master = await unwrapWithDevice(saved.record.device, saved.key);
+        if (master) {
+          try {
+            const s = await sodium();
+            const id = await identityFromMaster(master);
+            const { challenge } = await api.challenge(saved.record.signPk);
+            const sess = await api.session(saved.record.signPk, challenge, toB64(s, s.crypto_sign_detached(authMessage(challenge), id.sign.privateKey)));
+            if ((await enter(sess, master, true)) === 'ok') return;
+          } catch (e) {
+            // senza rete si riprova piu' tardi; con un account sparito si dimentica il browser
+            if (e instanceof ApiError && e.status === 404) await deviceStore.forget();
+          }
+        }
+      }
+      set({ phase: 'signedOut' });
+    },
+
+    async signUp(name, email, password, remember) {
       try {
-        const user = (await auth.completeSignIn()) ?? (await auth.currentUser());
-        await afterSignIn(user);
+        const s = await sodium();
+        const kdf = await newKdf();
+        const { authKey, wrapKey } = await passwordKeys(password, kdf);
+        const master = await newMaster();
+        const id = await identityFromMaster(master);
+        const pub = await publicIdentity(id);
+        const addr = normalizeEmail(email);
+        const sess = await api.register({
+          email: addr,
+          authKey,
+          kdf,
+          wrapped: await wrapMasterWith(wrapKey, master, 'password'),
+          signPk: pub.sign,
+          boxPk: pub.box,
+          signature: toB64(s, s.crypto_sign_detached(registerMessage(pub.sign, pub.box, addr), id.sign.privateKey)),
+        });
+        await wipe(wrapKey);
+        usePrefs.getState().apply({ lang: getLang() });
+        return await enter(sess, master, remember, name.trim());
       } catch (e) {
-        set({ phase: 'signedOut', error: String((e as Error).message ?? e) });
+        return errorResult(e);
       }
     },
 
-    async signIn() {
-      set({ error: null });
+    async signIn(email, password, remember) {
       try {
-        const user = await auth.signIn();
-        if (user) await afterSignIn(user);
+        const addr = normalizeEmail(email);
+        const { kdf } = await api.prelogin(addr);
+        const { authKey, wrapKey } = await passwordKeys(password, kdf);
+        const sess = await api.login({ email: addr, authKey });
+        const master = await unwrapMasterWith(wrapKey, sess.account.wrapped, 'password');
+        await wipe(wrapKey);
+        if (!master) return 'bad';
+        return await enter(sess, master, remember);
       } catch (e) {
-        set({ error: String((e as Error).message ?? e) });
+        return errorResult(e);
       }
+    },
+
+    /** Password dimenticata, con il codice di recupero: si entra e si sceglie una password nuova. */
+    async recover(email, code, newPassword) {
+      try {
+        const rk = await recoveryKeys(code);
+        if (!rk) return 'bad';
+        const sess = await api.recover({ email: normalizeEmail(email), recoveryAuth: rk.recoveryAuth });
+        const master = await unwrapMasterWith(rk.wrapKey, sess.recoveryWrapped, 'recovery');
+        if (!master) return 'bad';
+        const r = await enter(sess, master, false);
+        if (r === 'ok') await get().changePassword(newPassword);
+        return r;
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+
+    async changePassword(newPassword) {
+      const { identity, account } = get();
+      if (!identity || !account) return false;
+      const kdf = await newKdf();
+      const { authKey, wrapKey } = await passwordKeys(newPassword, kdf);
+      await api.changePassword({ authKey, kdf, wrapped: await wrapMasterWith(wrapKey, identity.master, 'password') });
+      await wipe(wrapKey);
+      return true;
+    },
+
+    async createRecoveryCode() {
+      const { identity, account } = get();
+      if (!identity || !account) return null;
+      const code = await newRecoveryCode();
+      const rk = (await recoveryKeys(code))!;
+      await api.setRecovery({ recoveryAuth: rk.recoveryAuth, wrapped: await wrapMasterWith(rk.wrapKey, identity.master, 'recovery') });
+      set({ account: { ...account, hasRecovery: true } });
+      return code;
+    },
+
+    async removeRecovery() {
+      const { account } = get();
+      await api.removeRecovery();
+      if (account) set({ account: { ...account, hasRecovery: false } });
     },
 
     async signOut() {
-      await get().lock();
-      await auth.signOut();
-      set({ phase: 'signedOut', user: null, account: null, identity: null });
-    },
-
-    async adoptMaster(master) {
-      return finish(await identityFromMaster(master));
-    },
-
-    async adoptPhrase(phrase) {
-      const entropy = phraseEntropy(phrase);
-      if (!entropy) return 'bad';
-      const master = await masterFromEntropy(entropy);
-      await wipe(entropy);
-      return get().adoptMaster(master);
-    },
-
-    async protect(kind) {
-      const { user, account, identity } = get();
-      if (!user || !account || !identity) return 'failed';
+      const { identity, phase } = get();
+      if (phase === 'ready') await api.logout().catch(() => undefined);
+      await deviceStore.forget();
       try {
-        if (kind === 'passkey') {
-          const made = await createPasskey(user.id, user.email ?? user.name).catch(() => undefined);
-          if (made === undefined) return 'failed';
-          if (!made) return 'noPrf';
-          const key = await wrappingKeyFrom(made.secret, 'passkey');
-          const wrapped = await wrapMaster(identity.master, key, 'passkey');
-          await wipe(made.secret, key);
-          await api.putPasskey(made.info.credentialId, made.info.salt, wrapped as never);
-          set({ account: { ...account, passkeys: [...account.passkeys, { credentialId: made.info.credentialId, salt: made.info.salt, wrapped: wrapped as never }] } });
-        } else if (kind === 'device') {
-          const key = await newDeviceKey();
-          await deviceStore.save({ v: 2, account: user.id, identity: await publicIdentity(identity), device: await wrapWithDevice(identity.master, key) }, key);
-          set({ remembered: true });
-        }
-        await usePrefs.getState().update({ unlock: kind });
-        set({ phase: 'ready' });
-        return 'ok';
+        sessionStorage.removeItem(GUEST_KEY);
       } catch {
-        return 'failed';
+        /* niente */
       }
-    },
-
-    async unlockWithPasskey() {
-      const { account } = get();
-      for (const p of account?.passkeys ?? []) {
-        const secret = await passkeySecret({ credentialId: p.credentialId, salt: p.salt });
-        if (!secret) continue;
-        const key = await wrappingKeyFrom(secret, 'passkey');
-        const master = await unwrapMaster(p.wrapped, key);
-        await wipe(secret, key);
-        if (master) return (await get().adoptMaster(master)) === 'ok';
-      }
-      return false;
-    },
-
-    async lock() {
-      const { identity } = get();
       if (identity) await wipe(identity.master, identity.box.privateKey, identity.sign.privateKey);
       setToken(null);
       usePrefs.setState({ saver: null });
-      set({ identity: null, phase: get().account ? 'locked' : get().phase });
+      set({ phase: 'signedOut', account: null, identity: null, guest: null, guestInvite: null });
     },
 
-    async forgetDevice() {
-      const { user } = get();
-      if (user) await deviceStore.forget(user.id);
-      set({ remembered: false });
-      if (usePrefs.getState().unlock === 'device') await usePrefs.getState().update({ unlock: 'phrase' });
+    async joinAsGuest() {
+      const inv = get().guestInvite;
+      if (!inv) return 'invalid';
+      try {
+        const s = await sodium();
+        const id = await ephemeralIdentity();
+        const pub = await publicIdentity(id);
+        const g = await api.joinGuest(inv.linkId, pub.sign, pub.box);
+        const master = toB64(s, id.master);
+        // la sessione da ospite vale per questa scheda: si chiude con lei
+        try {
+          sessionStorage.setItem(GUEST_KEY, JSON.stringify({ linkId: inv.linkId, secret: inv.secret, token: g.token, master }));
+        } catch {
+          /* senza sessionStorage si resta ospiti fino al ricaricamento */
+        }
+        return (await guestEnter(inv.linkId, inv.secret, g.token, master)) ? 'ok' : 'invalid';
+      } catch {
+        return 'invalid';
+      }
     },
 
-    publicIdentity() {
-      const a = get().account;
-      return a ? { sign: a.signPk, box: a.boxPk } : null;
+    clearPendingInvite() {
+      set({ pendingInvite: null });
     },
   };
+});
+
+// il server ha chiuso la sessione (scaduta, o link dell'ospite revocato): si torna all'ingresso
+live.onUnauthorized(() => {
+  if (useSession.getState().phase !== 'signedOut') void useSession.getState().signOut();
 });
